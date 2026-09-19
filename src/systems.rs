@@ -26,3 +26,12 @@ impl BGMusicPlayer {
         }
     }
 }
+
+pub enum Team {
+    RED,
+    BLUE,
+}
+
+pub struct GameState {
+    pub edit_mode: Team,
+}

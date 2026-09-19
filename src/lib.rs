@@ -24,6 +24,9 @@ pub fn run() {
     let proxy = event_loop.create_proxy();
 
     let app = App {
+        game_state: Some(systems::GameState {
+            edit_mode: systems::Team::RED,
+        }),
         proxy: Some(proxy),
         canvas_parent: Some("game-wrapper".to_string()),
         ..Default::default()

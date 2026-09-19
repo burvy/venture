@@ -17,8 +17,9 @@ pub struct Graphics {
 
 #[derive(Default)]
 pub struct App {
+    pub game_state: Option<systems::GameState>,
     pub graphics: Option<Graphics>,
-    pub music: Option<systems::MusicPlayer>,
+    pub music: Option<systems::BGMusicPlayer>,
     pub proxy: Option<EventLoopProxy<Graphics>>,
     pub canvas_parent: Option<String>,
 }
@@ -87,12 +88,13 @@ impl ApplicationHandler<Graphics> for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let Some(graphics) = self.graphics.as_mut() else {
+        if self.graphics.is_none() {
             return;
-        };
+        }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
+                let graphics = self.graphics.as_mut().unwrap();
                 if size.width > 0 && size.height > 0 {
                     graphics
                         .pixels
@@ -106,13 +108,16 @@ impl ApplicationHandler<Graphics> for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                // background overrides everything
-                for pixel in graphics.pixels.frame_mut().chunks_exact_mut(4) {
-                    pixel.copy_from_slice(&[16, 212, 48, 255]);
+                {
+                    let graphics = self.graphics.as_mut().unwrap();
+                    for pixel in graphics.pixels.frame_mut().chunks_exact_mut(4) {
+                        pixel.copy_from_slice(&[16, 212, 48, 255]);
+                    }
                 }
 
-                // additional graphics on top
-                graphics::draw_fn(graphics);
+                graphics::draw_fn(self);
+
+                let graphics = self.graphics.as_mut().unwrap();
                 if let Err(err) = graphics.pixels.render() {
                     eprintln!("render failed: {err}");
                     event_loop.exit();
