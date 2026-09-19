@@ -8,6 +8,8 @@ use winit::{
     window::{Fullscreen, Window, WindowId},
 };
 
+use crate::graphics;
+
 pub struct Graphics {
     pub window: Arc<Window>,
     pub pixels: Pixels<'static>,
@@ -95,6 +97,8 @@ impl ApplicationHandler<Graphics> for App {
                 }
             }
             WindowEvent::RedrawRequested => {
+                graphics::draw_fn(graphics);
+
                 for pixel in graphics.pixels.frame_mut().chunks_exact_mut(4) {
                     pixel.copy_from_slice(&[16, 212, 48, 255]);
                 }
