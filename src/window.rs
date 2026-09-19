@@ -97,11 +97,13 @@ impl ApplicationHandler<Graphics> for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                graphics::draw_fn(graphics);
-
+                // background overrides everything
                 for pixel in graphics.pixels.frame_mut().chunks_exact_mut(4) {
                     pixel.copy_from_slice(&[16, 212, 48, 255]);
                 }
+
+                // additional graphics on top
+                graphics::draw_fn(graphics);
                 if let Err(err) = graphics.pixels.render() {
                     eprintln!("render failed: {err}");
                     event_loop.exit();
