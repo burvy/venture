@@ -1,4 +1,5 @@
 pub mod graphics;
+pub mod sounds;
 pub mod window;
 
 use std::sync::atomic::{AtomicBool, Ordering};
