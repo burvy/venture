@@ -8,7 +8,7 @@ use winit::{
     window::{Fullscreen, Window, WindowId},
 };
 
-use crate::graphics;
+use crate::{graphics, systems};
 
 pub struct Graphics {
     pub window: Arc<Window>,
@@ -18,11 +18,20 @@ pub struct Graphics {
 #[derive(Default)]
 pub struct App {
     pub graphics: Option<Graphics>,
+    pub music: Option<systems::MusicPlayer>,
     pub proxy: Option<EventLoopProxy<Graphics>>,
     pub canvas_parent: Option<String>,
 }
 
 impl ApplicationHandler<Graphics> for App {
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(music) = self.music.as_mut() {
+            music.update(); // update every loop iteration
+        }
+        if let Some(graphics) = self.graphics.as_ref() {
+            graphics.window.request_redraw();
+        }
+    }
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.graphics.is_some() {
             return;

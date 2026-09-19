@@ -1,11 +1,14 @@
 #[cfg(not(target_arch = "wasm32"))]
 mod native {
     use kira::{
-        AudioManager, AudioManagerSettings, DefaultBackend, sound::static_sound::StaticSoundData,
+        AudioManager, AudioManagerSettings, DefaultBackend,
+        sound::PlaybackState,
+        sound::static_sound::{StaticSoundData, StaticSoundHandle},
     };
 
     pub struct Sounds {
         manager: AudioManager,
+        handle: Option<StaticSoundHandle>,
     }
 
     impl Sounds {
@@ -13,13 +16,21 @@ mod native {
             Sounds {
                 manager: AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
                     .expect("failed to create audio manager"),
+                handle: None,
             }
         }
 
         pub fn play(&mut self, bytes: &'static [u8]) {
             let sound = StaticSoundData::from_cursor(std::io::Cursor::new(bytes))
                 .expect("invalid sound data");
-            self.manager.play(sound).expect("failed to play sound");
+            self.handle = self.manager.play(sound).ok();
+        }
+
+        pub fn finished(&self) -> bool {
+            match &self.handle {
+                Some(handle) => matches!(handle.state(), PlaybackState::Stopped),
+                None => true,
+            }
         }
     }
 }
@@ -30,11 +41,13 @@ mod web {
     use wasm_bindgen::JsValue;
     use web_sys::{Blob, BlobPropertyBag, HtmlAudioElement, Url};
 
-    pub struct Sounds;
+    pub struct Sounds {
+        audio: Option<HtmlAudioElement>,
+    }
 
     impl Sounds {
         pub fn new() -> Self {
-            Sounds
+            Sounds { audio: None }
         }
 
         pub fn play(&mut self, bytes: &'static [u8]) {
@@ -52,6 +65,14 @@ mod web {
             let audio =
                 HtmlAudioElement::new_with_src(&url).expect("failed to create audio element");
             let _ = audio.play();
+            self.audio = Some(audio);
+        }
+
+        pub fn finished(&self) -> bool {
+            match &self.audio {
+                Some(audio) => audio.ended(),
+                None => true,
+            }
         }
     }
 }

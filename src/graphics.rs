@@ -4,6 +4,8 @@ use image::RgbaImage;
 use std::sync::OnceLock;
 
 static RED_TROOP: OnceLock<Sprite> = OnceLock::new();
+static RED_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
+static BLUE_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
 
 impl Graphics {
     fn draw_pixel(&mut self, x: u32, y: u32, color: [u8; 4]) {
@@ -60,6 +62,10 @@ impl Sprite {
 pub fn draw_fn(graphics: &mut Graphics) {
     let red_troop = RED_TROOP
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-troop.png")));
+    let red_edit_mode = RED_EDIT_MODE
+        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-edit-mode.png")));
+    let blue_edit_mode = BLUE_EDIT_MODE
+        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/blue-edit-mode.png")));
 
     let size = graphics.pixels.texture().size();
     let x = (size.width - red_troop.width) / 2;
