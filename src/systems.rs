@@ -6,6 +6,16 @@ use std::collections::HashMap;
 
 pub type Entity = u32;
 
+/// pixels a troop can move per tick
+const TROOP_SPEED: f64 = 2.0;
+/// "range" to maintain from teammates
+const TROOP_TEAM_RANGE: f64 = 64.0;
+/// "range" to maintain
+const TROOP_ENEM_RANGE: f64 = 512.0;
+/// margin of error to so troops stay fixed on the
+/// border of being too close or too far, preventing jittering
+const RANGE_MARGIN: f64 = 4.0;
+
 static BG_MUSIC: [&[u8]; 4] = [
     include_bytes!("../assets/sounds/music/song1.ogg"),
     include_bytes!("../assets/sounds/music/song2.ogg"),
@@ -122,4 +132,108 @@ pub fn spawn_troop(world: &mut World, pos: Position, team: Team) -> Entity {
     );
     world.teams.insert(entity, team);
     entity
+}
+
+/// Maintains best distance between enemies and also between friends
+/// TODO: Add a bit of randomness into their movement
+pub fn update_troops(world: &mut World) {
+    // you may use either `teams` or `positions`, they're the
+    // same entities
+    let entities: Vec<Entity> = world.teams.keys().copied().collect();
+
+    for entity in entities {
+        let Some(&own_team) = world.teams.get(&entity) else {
+            continue;
+        };
+        let Some(pos) = world.positions.get(&entity) else {
+            continue;
+        };
+
+        let (x, y) = (pos.x as f64, pos.y as f64);
+
+        // dx, dy, crude distance
+        let mut nearest_enem: Option<(f64, f64, f64)> = None;
+        let mut nearest_ally: Option<(f64, f64, f64)> = None;
+
+        // TODO: add a more efficient check that DOESN'T
+        // grow by O(n^2) because we check every single
+        // entity
+        for (&other, other_pos) in world.positions.iter() {
+            if other == entity {
+                continue;
+            }
+            let dx = other_pos.x as f64 - x;
+            let dy = other_pos.y as f64 - y;
+
+            let crude_dist = dx.abs() + dy.abs();
+
+            // if the last best entity's "distance" was further than
+            // the "distance" to this entity or there is none,
+            // set the best entity to this one because this one
+            // is a better target (it's closer)
+            //
+            // Note that the distance is not the true
+            // distance, but it should be fine.
+            //
+            // TODO: tweak how entities are selected as the AI
+            // gets more advanced
+            let update_closest_fn = |pos: &mut Option<(f64, f64, f64)>| {
+                if let Some(closest) = pos {
+                    if closest.2 > crude_dist {
+                        *pos = Some((dx, dy, crude_dist));
+                    }
+                } else {
+                    *pos = Some((dx, dy, crude_dist));
+                }
+            };
+
+            if world.teams.get(&other) != Some(&own_team) {
+                update_closest_fn(&mut nearest_enem);
+            } else {
+                update_closest_fn(&mut nearest_ally);
+            }
+        }
+
+        let mut move_x = 0.0;
+        let mut move_y = 0.0;
+
+        let determine_troop_speed = |axis: f64| {
+            if axis > 0.0 {
+                TROOP_SPEED
+            } else if axis < 0.0 {
+                -TROOP_SPEED
+            } else {
+                0.0
+            }
+        };
+        if let Some((dx, dy, crude_dist)) = nearest_enem {
+            let x_dir = determine_troop_speed(dx);
+            let y_dir = determine_troop_speed(dy);
+            if crude_dist > TROOP_ENEM_RANGE + RANGE_MARGIN {
+                move_x += x_dir;
+                move_y += y_dir;
+            } else if crude_dist < TROOP_ENEM_RANGE - RANGE_MARGIN {
+                move_x -= x_dir;
+                move_y -= y_dir;
+            }
+        }
+
+        if let Some((dx, dy, crude_dist)) = nearest_ally {
+            if crude_dist < TROOP_TEAM_RANGE {
+                // colliding with teammates is more important to resolve
+                let away_x = -determine_troop_speed(dx) * 2.0;
+                let away_y = -determine_troop_speed(dy) * 2.0;
+                move_x += away_x;
+                move_y += away_y;
+            }
+        }
+
+        if move_x != 0.0 || move_y != 0.0 {
+            let new_pos = Position {
+                x: (x + move_x).floor() as u32,
+                y: (y + move_y).floor() as u32,
+            };
+            world.positions.insert(entity, new_pos);
+        }
+    }
 }

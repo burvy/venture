@@ -21,3 +21,6 @@ web-sys = { version = "0.3", features = ["Document", "Element", "Window", "HtmlC
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = "0.4"
 kira = "0.12.4"
+
+[profile.dev]
+opt-level = 1

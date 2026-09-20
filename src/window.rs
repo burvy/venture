@@ -53,7 +53,12 @@ impl App {
 impl ApplicationHandler<Graphics> for App {
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(music) = self.music.as_mut() {
-            music.update(); // update every loop iteration
+            music.update();
+        }
+        if let Some(game_state) = self.game_state.as_mut() {
+            if !game_state.paused {
+                systems::update_troops(&mut game_state.world);
+            }
         }
         if let Some(graphics) = self.graphics.as_ref() {
             graphics.window.request_redraw();
