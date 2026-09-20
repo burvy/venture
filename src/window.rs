@@ -3,8 +3,9 @@ use std::sync::Arc;
 use pixels::{Pixels, PixelsBuilder, SurfaceTexture, wgpu::Backends};
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoopProxy},
+    keyboard::{self, KeyCode, PhysicalKey},
     window::{Fullscreen, Window, WindowId},
 };
 
@@ -41,6 +42,7 @@ impl ApplicationHandler<Graphics> for App {
             .with_title("venture")
             .with_fullscreen(Some(Fullscreen::Borderless(None)));
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
+        self.music = Some(systems::BGMusicPlayer::new());
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -121,6 +123,16 @@ impl ApplicationHandler<Graphics> for App {
                 if let Err(err) = graphics.pixels.render() {
                     eprintln!("render failed: {err}");
                     event_loop.exit();
+                }
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == ElementState::Pressed
+                    && !event.repeat
+                    && event.physical_key == PhysicalKey::Code(KeyCode::KeyM)
+                {
+                    if let Some(game_state) = self.game_state.as_mut() {
+                        game_state.change_teams()
+                    }
                 }
             }
             _ => (),

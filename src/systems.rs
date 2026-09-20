@@ -27,11 +27,21 @@ impl BGMusicPlayer {
     }
 }
 
+#[derive(PartialEq)]
 pub enum Team {
     RED,
     BLUE,
 }
 
 pub struct GameState {
-    pub edit_mode: Team,
+    pub team_mode: Team,
+}
+impl GameState {
+    pub fn change_teams(&mut self) {
+        self.team_mode = if self.team_mode == Team::RED {
+            Team::BLUE
+        } else {
+            Team::RED
+        }
+    }
 }

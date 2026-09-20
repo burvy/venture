@@ -82,7 +82,7 @@ pub fn draw_fn(app: &mut App) {
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")));
 
     graphics.draw_sprite(0, 0, change_mode);
-    match game_state.edit_mode {
+    match game_state.team_mode {
         systems::Team::RED => graphics.draw_sprite(0, 32, red_edit_mode),
         systems::Team::BLUE => graphics.draw_sprite(0, 32, blue_edit_mode),
     }
