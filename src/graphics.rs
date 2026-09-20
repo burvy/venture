@@ -32,18 +32,42 @@ impl Graphics {
     fn draw_sprite(&mut self, x: u32, y: u32, sprite: &Sprite) {
         for i in 0..sprite.width {
             for j in 0..sprite.height {
-                let pix = ((j * sprite.width + i) << 2) as usize;
-                let alpha = sprite.pixels[pix + 3];
-                if alpha == 0 {
+                if let Some(color) = sprite.get_pixel_color(i, j) {
+                    self.draw_pixel(x + i, y + j, color);
+                }
+            }
+        }
+    }
+    fn draw_sprite_rotated(&mut self, x: u32, y: u32, sprite: &Sprite, angle: f64) {
+        let (center_x, center_y) = (sprite.width as f64 / 2.0, sprite.height as f64 / 2.0);
+        let (cos_a, sin_a) = (angle.cos(), angle.sin());
+
+        for i in 0..sprite.width {
+            for j in 0..sprite.height {
+                // the offset of the pixel from the center
+                let offset_x = i as f64 - center_x;
+                let offset_y = j as f64 - center_y;
+
+                // rotate backwards to find which source pixel belongs here
+                // this is the inverse 2D rotation matrix, best to look it
+                // up if you want to prove it.
+                let og_x = offset_x * cos_a + offset_y * sin_a + center_x;
+                let og_y = -offset_x * sin_a + offset_y * cos_a + center_y;
+
+                // don't draw out of bounds
+                let rounded_x = og_x.round();
+                let rounded_y = og_y.round();
+                if rounded_x < 0.0
+                    || rounded_y < 0.0
+                    || rounded_x >= sprite.width as f64
+                    || rounded_y >= sprite.height as f64
+                {
                     continue;
                 }
-                let color = [
-                    sprite.pixels[pix],
-                    sprite.pixels[pix + 1],
-                    sprite.pixels[pix + 2],
-                    sprite.pixels[pix + 3],
-                ];
-                self.draw_pixel(x + i, y + j, color);
+
+                if let Some(color) = sprite.get_pixel_color(rounded_x as u32, rounded_y as u32) {
+                    self.draw_pixel(x + i, y + j, color);
+                }
             }
         }
     }
@@ -65,6 +89,21 @@ impl Sprite {
             height: img.height(),
             pixels: img.into_raw(),
         }
+    }
+
+    /// Gets the color of a pixel from the sprite
+    fn get_pixel_color(&self, x: u32, y: u32) -> Option<[u8; 4]> {
+        let pix = ((y * self.width + x) << 2) as usize;
+        let alpha = self.pixels[pix + 3];
+        if alpha == 0 {
+            return None;
+        }
+        Some([
+            self.pixels[pix],
+            self.pixels[pix + 1],
+            self.pixels[pix + 2],
+            self.pixels[pix + 3],
+        ])
     }
 }
 
@@ -116,7 +155,13 @@ pub fn draw_fn(app: &mut App) {
             Some(systems::Team::BLUE) => blue_troop,
             None => continue,
         };
-        graphics.draw_sprite(pos.x, pos.y, sprite);
+        let rotation = game_state
+            .world
+            .rotations
+            .get(entity)
+            .copied()
+            .unwrap_or(0.0);
+        graphics.draw_sprite_rotated(pos.x, pos.y, sprite, rotation);
     }
 }
 pub fn troop_at(world: &systems::World, x: u32, y: u32) -> Option<systems::Entity> {
@@ -138,6 +183,8 @@ pub fn troop_at(world: &systems::World, x: u32, y: u32) -> Option<systems::Entit
     }
     None
 }
+
+/// definition of some buttons with logic
 pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 3] {
     let change_mode = CHANGE_MODE
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")));

@@ -2,7 +2,7 @@ use crate::{
     graphics::{BLUE_TROOP, RED_TROOP},
     sounds::Sounds,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, f64::consts::FRAC_PI_2};
 
 pub type Entity = u32;
 
@@ -98,6 +98,7 @@ pub struct World {
     next_entity: Entity,
     pub positions: HashMap<Entity, Position>,
     pub teams: HashMap<Entity, Team>,
+    pub rotations: HashMap<Entity, f64>,
 }
 
 impl World {
@@ -131,6 +132,8 @@ pub fn spawn_troop(world: &mut World, pos: Position, team: Team) -> Entity {
         },
     );
     world.teams.insert(entity, team);
+    // my troop sprite faces upwards (for both troops)
+    world.rotations.insert(entity, 0.0);
     entity
 }
 
@@ -216,6 +219,12 @@ pub fn update_troops(world: &mut World) {
                 move_x -= x_dir;
                 move_y -= y_dir;
             }
+        }
+
+        if let Some((dx, dy, _)) = nearest_enem {
+            // + pi / 2 because sprite originally faces up
+            let facing = dy.atan2(dx) + FRAC_PI_2;
+            world.rotations.insert(entity, facing);
         }
 
         if let Some((dx, dy, crude_dist)) = nearest_ally {
