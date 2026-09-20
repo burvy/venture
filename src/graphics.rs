@@ -9,7 +9,11 @@ use std::sync::OnceLock;
 static RED_TROOP: OnceLock<Sprite> = OnceLock::new();
 static RED_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
 static BLUE_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
+static DELETE_MODE: OnceLock<Sprite> = OnceLock::new();
 static CHANGE_MODE: OnceLock<Sprite> = OnceLock::new();
+static PLAYING: OnceLock<Sprite> = OnceLock::new();
+static PAUSED: OnceLock<Sprite> = OnceLock::new();
+static DELETE: OnceLock<Sprite> = OnceLock::new();
 
 impl Graphics {
     fn draw_pixel(&mut self, x: u32, y: u32, color: [u8; 4]) {
@@ -78,13 +82,30 @@ pub fn draw_fn(app: &mut App) {
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-edit-mode.png")));
     let blue_edit_mode = BLUE_EDIT_MODE
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/blue-edit-mode.png")));
+    let delete_mode = DELETE_MODE
+        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/delete-mode.png")));
     let change_mode = CHANGE_MODE
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")));
+    let playing =
+        PLAYING.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/playing.png")));
+    let paused =
+        PAUSED.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/paused.png")));
+    let delete =
+        DELETE.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/delete.png")));
 
     graphics.draw_sprite(0, 0, change_mode);
-    match game_state.team_mode {
-        systems::Team::RED => graphics.draw_sprite(0, 128, red_edit_mode),
-        systems::Team::BLUE => graphics.draw_sprite(0, 128, blue_edit_mode),
+    match game_state.paused {
+        true => graphics.draw_sprite(512, 0, paused),
+        false => graphics.draw_sprite(512, 0, playing),
+    }
+    graphics.draw_sprite(1024, 0, delete);
+    if game_state.deleting {
+        graphics.draw_sprite(0, 128, delete_mode);
+    } else {
+        match game_state.team_mode {
+            systems::Team::RED => graphics.draw_sprite(0, 128, red_edit_mode),
+            systems::Team::BLUE => graphics.draw_sprite(0, 128, blue_edit_mode),
+        }
     }
 
     let size = graphics.pixels.texture().size();

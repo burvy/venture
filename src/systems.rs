@@ -42,6 +42,8 @@ pub struct Position {
 }
 
 pub struct GameState {
+    pub deleting: bool,
+    pub paused: bool,
     pub team_mode: Team,
     pub world: World,
 }
@@ -53,6 +55,12 @@ impl GameState {
         } else {
             Team::RED
         }
+    }
+    pub fn toggle_delete(&mut self) {
+        self.deleting = !self.deleting
+    }
+    pub fn toggle_pause(&mut self) {
+        self.paused = !self.paused
     }
 }
 
