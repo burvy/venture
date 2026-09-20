@@ -6,7 +6,8 @@ use image::RgbaImage;
 
 use std::sync::OnceLock;
 
-static RED_TROOP: OnceLock<Sprite> = OnceLock::new();
+pub static RED_TROOP: OnceLock<Sprite> = OnceLock::new();
+pub static BLUE_TROOP: OnceLock<Sprite> = OnceLock::new();
 static RED_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
 static BLUE_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
 static DELETE_MODE: OnceLock<Sprite> = OnceLock::new();
@@ -48,9 +49,9 @@ impl Graphics {
     }
 }
 
-struct Sprite {
-    width: u32,
-    height: u32,
+pub struct Sprite {
+    pub width: u32,
+    pub height: u32,
     pixels: Vec<u8>,
 }
 
@@ -77,7 +78,8 @@ pub fn draw_fn(app: &mut App) {
 
     let red_troop = RED_TROOP
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-troop.png")));
-    // TODO: make the edit mode sprites like 4x bigger please
+    let blue_troop = BLUE_TROOP
+        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/blue-troop.png")));
     let red_edit_mode = RED_EDIT_MODE
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-edit-mode.png")));
     let blue_edit_mode = BLUE_EDIT_MODE
@@ -108,14 +110,66 @@ pub fn draw_fn(app: &mut App) {
         }
     }
 
-    let size = graphics.pixels.texture().size();
-    let x = (size.width - red_troop.width) / 2;
-    let y = (size.height - red_troop.height) / 2;
-    graphics.draw_sprite(x, y, red_troop);
+    for (entity, pos) in game_state.world.positions.iter() {
+        let sprite = match game_state.world.teams.get(entity) {
+            Some(systems::Team::RED) => red_troop,
+            Some(systems::Team::BLUE) => blue_troop,
+            None => continue,
+        };
+        graphics.draw_sprite(pos.x, pos.y, sprite);
+    }
 }
+pub fn troop_at(world: &systems::World, x: u32, y: u32) -> Option<systems::Entity> {
+    let red_troop = RED_TROOP
+        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-troop.png")));
+    let blue_troop = BLUE_TROOP
+        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/blue-troop.png")));
 
-pub fn change_mode_bounds() -> (u32, u32) {
-    let sprite = CHANGE_MODE
+    for (&entity, pos) in world.positions.iter() {
+        let sprite = match world.teams.get(&entity) {
+            Some(systems::Team::RED) => red_troop,
+            Some(systems::Team::BLUE) => blue_troop,
+            None => continue,
+        };
+        // origin is at top left corner
+        if x >= pos.x && x < pos.x + sprite.width && y >= pos.y && y < pos.y + sprite.height {
+            return Some(entity);
+        }
+    }
+    None
+}
+pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 3] {
+    let change_mode = CHANGE_MODE
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")));
-    (sprite.width, sprite.height)
+    let play_pause = if game_state.paused {
+        PAUSED.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/paused.png")))
+    } else {
+        PLAYING.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/playing.png")))
+    };
+    let delete =
+        DELETE.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/delete.png")));
+
+    [
+        systems::Button {
+            x: 0,
+            y: 0,
+            width: change_mode.width,
+            height: change_mode.height,
+            on_click: systems::GameState::change_teams,
+        },
+        systems::Button {
+            x: 512,
+            y: 0,
+            width: play_pause.width,
+            height: play_pause.height,
+            on_click: systems::GameState::toggle_pause,
+        },
+        systems::Button {
+            x: 1024,
+            y: 0,
+            width: delete.width,
+            height: delete.height,
+            on_click: systems::GameState::toggle_delete,
+        },
+    ]
 }

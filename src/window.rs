@@ -31,11 +31,20 @@ impl App {
         let Some(game_state) = self.game_state.as_mut() else {
             return;
         };
-        let (button_w, button_h) = graphics::change_mode_bounds();
-        if x < button_w && y < button_h {
-            game_state.change_teams();
+        for button in graphics::buttons(game_state) {
+            if button.contains(x, y) {
+                (button.on_click)(game_state);
+                return; // early return, can't use functional tools
+            }
+        }
+        let pos = systems::Position { x, y };
+
+        if let Some(entity) = graphics::troop_at(&game_state.world, x, y) {
+            if game_state.deleting {
+                game_state.world.despawn(entity);
+                return;
+            }
         } else {
-            let pos = systems::Position { x, y };
             systems::spawn_troop(&mut game_state.world, pos, game_state.team_mode);
         }
     }
