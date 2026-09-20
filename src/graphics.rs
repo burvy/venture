@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 static RED_TROOP: OnceLock<Sprite> = OnceLock::new();
 static RED_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
 static BLUE_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
+static CHANGE_MODE: OnceLock<Sprite> = OnceLock::new();
 
 impl Graphics {
     fn draw_pixel(&mut self, x: u32, y: u32, color: [u8; 4]) {
@@ -69,16 +70,21 @@ pub fn draw_fn(app: &mut App) {
     let Some(game_state) = app.game_state.as_mut() else {
         return;
     };
+
     let red_troop = RED_TROOP
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-troop.png")));
+    // TODO: make the edit mode sprites like 4x bigger please
     let red_edit_mode = RED_EDIT_MODE
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-edit-mode.png")));
     let blue_edit_mode = BLUE_EDIT_MODE
         .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/blue-edit-mode.png")));
+    let change_mode = CHANGE_MODE
+        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")));
 
+    graphics.draw_sprite(0, 0, change_mode);
     match game_state.edit_mode {
-        systems::Team::RED => graphics.draw_sprite(0, 0, red_edit_mode),
-        systems::Team::BLUE => graphics.draw_sprite(0, 0, blue_edit_mode),
+        systems::Team::RED => graphics.draw_sprite(0, 32, red_edit_mode),
+        systems::Team::BLUE => graphics.draw_sprite(0, 32, blue_edit_mode),
     }
 
     let size = graphics.pixels.texture().size();
