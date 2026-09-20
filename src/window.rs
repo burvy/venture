@@ -5,7 +5,7 @@ use winit::{
     application::ApplicationHandler,
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoopProxy},
-    keyboard::{self, KeyCode, PhysicalKey},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Fullscreen, Window, WindowId},
 };
 
