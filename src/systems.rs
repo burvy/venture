@@ -1,4 +1,7 @@
 use crate::sounds::Sounds;
+use std::collections::HashMap;
+
+pub type Entity = u32;
 
 static BG_MUSIC: [&[u8]; 4] = [
     include_bytes!("../assets/sounds/music/song1.ogg"),
@@ -27,15 +30,22 @@ impl BGMusicPlayer {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Team {
     RED,
     BLUE,
 }
 
+pub struct Position {
+    pub x: u32,
+    pub y: u32,
+}
+
 pub struct GameState {
     pub team_mode: Team,
+    pub world: World,
 }
+
 impl GameState {
     pub fn change_teams(&mut self) {
         self.team_mode = if self.team_mode == Team::RED {
@@ -44,4 +54,26 @@ impl GameState {
             Team::RED
         }
     }
+}
+
+#[derive(Default)]
+pub struct World {
+    next_entity: Entity,
+    pub positions: HashMap<Entity, Position>,
+    pub teams: HashMap<Entity, Team>,
+}
+
+impl World {
+    pub fn new_entity(&mut self) -> Entity {
+        let id = self.next_entity;
+        self.next_entity += 1;
+        id
+    }
+}
+
+pub fn spawn_troop(world: &mut World, pos: Position, team: Team) -> Entity {
+    let entity = world.new_entity();
+    world.positions.insert(entity, pos);
+    world.teams.insert(entity, team);
+    entity
 }

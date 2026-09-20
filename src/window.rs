@@ -3,7 +3,7 @@ use std::sync::Arc;
 use pixels::{Pixels, PixelsBuilder, SurfaceTexture, wgpu::Backends};
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, WindowEvent},
+    event::{ElementState, MouseButton, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoopProxy},
     keyboard::{KeyCode, PhysicalKey},
     window::{Fullscreen, Window, WindowId},
@@ -23,6 +23,7 @@ pub struct App {
     pub music: Option<systems::BGMusicPlayer>,
     pub proxy: Option<EventLoopProxy<Graphics>>,
     pub canvas_parent: Option<String>,
+    pub cursor_pos: (f64, f64),
 }
 
 impl ApplicationHandler<Graphics> for App {
@@ -132,6 +133,20 @@ impl ApplicationHandler<Graphics> for App {
                 {
                     if let Some(game_state) = self.game_state.as_mut() {
                         game_state.change_teams()
+                    }
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.cursor_pos = (position.x, position.y);
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                if state == ElementState::Pressed && button == MouseButton::Left {
+                    if let Some(game_state) = self.game_state.as_mut() {
+                        let pos = systems::Position {
+                            x: self.cursor_pos.0 as u32,
+                            y: self.cursor_pos.1 as u32,
+                        };
+                        systems::spawn_troop(&mut game_state.world, pos, game_state.team_mode);
                     }
                 }
             }

@@ -26,6 +26,7 @@ pub fn run() {
     let app = App {
         game_state: Some(systems::GameState {
             team_mode: systems::Team::RED,
+            world: systems::World::default(),
         }),
         proxy: Some(proxy),
         canvas_parent: Some("game-wrapper".to_string()),
