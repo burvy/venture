@@ -83,8 +83,8 @@ pub fn draw_fn(app: &mut App) {
 
     graphics.draw_sprite(0, 0, change_mode);
     match game_state.team_mode {
-        systems::Team::RED => graphics.draw_sprite(0, 32, red_edit_mode),
-        systems::Team::BLUE => graphics.draw_sprite(0, 32, blue_edit_mode),
+        systems::Team::RED => graphics.draw_sprite(0, 128, red_edit_mode),
+        systems::Team::BLUE => graphics.draw_sprite(0, 128, blue_edit_mode),
     }
 
     let size = graphics.pixels.texture().size();
