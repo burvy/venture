@@ -92,3 +92,9 @@ pub fn draw_fn(app: &mut App) {
     let y = (size.height - red_troop.height) / 2;
     graphics.draw_sprite(x, y, red_troop);
 }
+
+pub fn change_mode_bounds() -> (u32, u32) {
+    let sprite = CHANGE_MODE
+        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")));
+    (sprite.width, sprite.height)
+}

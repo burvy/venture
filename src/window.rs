@@ -3,7 +3,7 @@ use std::sync::Arc;
 use pixels::{Pixels, PixelsBuilder, SurfaceTexture, wgpu::Backends};
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, MouseButton, WindowEvent},
+    event::{ElementState, MouseButton, TouchPhase, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoopProxy},
     keyboard::{KeyCode, PhysicalKey},
     window::{Fullscreen, Window, WindowId},
@@ -24,6 +24,21 @@ pub struct App {
     pub proxy: Option<EventLoopProxy<Graphics>>,
     pub canvas_parent: Option<String>,
     pub cursor_pos: (f64, f64),
+}
+
+impl App {
+    fn handle_tap(&mut self, x: u32, y: u32) {
+        let Some(game_state) = self.game_state.as_mut() else {
+            return;
+        };
+        let (button_w, button_h) = graphics::change_mode_bounds();
+        if x < button_w && y < button_h {
+            game_state.change_teams();
+        } else {
+            let pos = systems::Position { x, y };
+            systems::spawn_troop(&mut game_state.world, pos, game_state.team_mode);
+        }
+    }
 }
 
 impl ApplicationHandler<Graphics> for App {
@@ -141,13 +156,13 @@ impl ApplicationHandler<Graphics> for App {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 if state == ElementState::Pressed && button == MouseButton::Left {
-                    if let Some(game_state) = self.game_state.as_mut() {
-                        let pos = systems::Position {
-                            x: self.cursor_pos.0 as u32,
-                            y: self.cursor_pos.1 as u32,
-                        };
-                        systems::spawn_troop(&mut game_state.world, pos, game_state.team_mode);
-                    }
+                    let (x, y) = (self.cursor_pos.0 as u32, self.cursor_pos.1 as u32);
+                    self.handle_tap(x, y);
+                }
+            }
+            WindowEvent::Touch(touch) => {
+                if touch.phase == TouchPhase::Started {
+                    self.handle_tap(touch.location.x as u32, touch.location.y as u32);
                 }
             }
             _ => (),
