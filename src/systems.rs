@@ -8,10 +8,10 @@ pub type Entity = u32;
 
 /// pixels a troop can move per tick
 const TROOP_SPEED: f64 = 2.0;
-/// "range" to maintain from teammates
-const TROOP_TEAM_RANGE: f64 = 64.0;
-/// "range" to maintain
-const TROOP_ENEM_RANGE: f64 = 512.0;
+/// "range" to maintain from teammates (64^2)
+const TROOP_TEAM_RANGE: f64 = 4096.0;
+/// "range" to maintain from teammates (512^2)
+const TROOP_ENEM_RANGE: f64 = 262144.0;
 /// margin of error to so troops stay fixed on the
 /// border of being too close or too far, preventing jittering
 const RANGE_MARGIN: f64 = 4.0;
@@ -154,7 +154,7 @@ pub fn update_troops(world: &mut World) {
 
         let (x, y) = (pos.x as f64, pos.y as f64);
 
-        // dx, dy, crude distance
+        // dx, dy, distance
         let mut nearest_enem: Option<(f64, f64, f64)> = None;
         let mut nearest_ally: Option<(f64, f64, f64)> = None;
 
@@ -168,7 +168,7 @@ pub fn update_troops(world: &mut World) {
             let dx = other_pos.x as f64 - x;
             let dy = other_pos.y as f64 - y;
 
-            let crude_dist = dx.abs() + dy.abs();
+            let dist_sq = dx * dx + dy * dy;
 
             // if the last best entity's "distance" was further than
             // the "distance" to this entity or there is none,
@@ -182,11 +182,11 @@ pub fn update_troops(world: &mut World) {
             // gets more advanced
             let update_closest_fn = |pos: &mut Option<(f64, f64, f64)>| {
                 if let Some(closest) = pos {
-                    if closest.2 > crude_dist {
-                        *pos = Some((dx, dy, crude_dist));
+                    if closest.2 > dist_sq {
+                        *pos = Some((dx, dy, dist_sq));
                     }
                 } else {
-                    *pos = Some((dx, dy, crude_dist));
+                    *pos = Some((dx, dy, dist_sq));
                 }
             };
 
