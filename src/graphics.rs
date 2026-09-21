@@ -42,6 +42,7 @@ impl Sprites {
             obstacle_mode_button: Sprite::from_bytes(include_bytes!(
                 "../assets/images/obstacle-mode-button.png"
             )),
+            // TODO: add the arrow keys when you can
         }
     }
 }
