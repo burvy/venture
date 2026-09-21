@@ -22,6 +22,7 @@ pub struct Sprites {
     pub paused: Sprite,
     pub delete: Sprite,
     pub obstacle_mode_button: Sprite,
+    pub dpad_right: Sprite,
 }
 
 impl Sprites {
@@ -42,7 +43,7 @@ impl Sprites {
             obstacle_mode_button: Sprite::from_bytes(include_bytes!(
                 "../assets/images/obstacle-mode-button.png"
             )),
-            // TODO: add the arrow keys when you can
+            dpad_right: Sprite::from_bytes(include_bytes!("../assets/images/dpad-right.png")),
         }
     }
 }
@@ -175,6 +176,7 @@ pub fn draw_fn(app: &mut App) {
         }
     }
     graphics.draw_sprite(1536, 0, &sprites.obstacle_mode_button);
+    graphics.draw_sprite(1536, 1280, &sprites.dpad_right);
 
     // DRAWING TROOP SPRITES
     for (&entity, pos) in game_state.world.positions.iter() {

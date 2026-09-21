@@ -279,6 +279,7 @@ fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
         target_move_x = -get_speed_for(dx) * TROOP_SPREAD_SPEED_MULTIPLIER;
         target_move_y = -get_speed_for(dy) * TROOP_SPREAD_SPEED_MULTIPLIER;
     } else if let Some((dx, dy, dist_sq)) = nearest_enem {
+        // moves towards enemies
         let x_dir = get_speed_for(dx);
         let y_dir = get_speed_for(dy);
         if dist_sq > (TROOP_ENEM_RANGE + RANGE_MARGIN).powi(2) {

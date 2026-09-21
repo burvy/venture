@@ -48,7 +48,7 @@ impl App {
 
         let world_x = x + game_state.camera.x;
         let world_y = y + game_state.camera.y;
-        let entity = graphics::troop_at(&game_state.world, world_x, world_y);
+        let entity: Option<systems::Entity> = graphics::troop_at(&game_state.world, world_x, world_y);
         let pos = systems::Position {
             x: world_x,
             y: world_y,
@@ -72,6 +72,7 @@ impl App {
 }
 
 impl ApplicationHandler<Graphics> for App {
+    /// Tick loop
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(music) = self.music.as_mut() {
             music.update();
