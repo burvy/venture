@@ -22,7 +22,7 @@ pub struct Sprites {
     pub paused: Sprite,
     pub delete: Sprite,
     pub obstacle_mode_button: Sprite,
-    pub dpad_right: Sprite,
+    pub dpad_arrow: Sprite,
 }
 
 impl Sprites {
@@ -43,7 +43,7 @@ impl Sprites {
             obstacle_mode_button: Sprite::from_bytes(include_bytes!(
                 "../assets/images/obstacle-mode-button.png"
             )),
-            dpad_right: Sprite::from_bytes(include_bytes!("../assets/images/dpad-right.png")),
+            dpad_arrow: Sprite::from_bytes(include_bytes!("../assets/images/dpad-arrow.png")),
         }
     }
 }
@@ -137,7 +137,7 @@ impl Sprite {
     fn get_pixel_color(&self, x: u32, y: u32) -> Option<[u8; 4]> {
         // pixel buffer calculation
         let pix = ((y * self.width + x) << 2) as usize;
-
+        // TODO: sample screen color and manually blend RGB over returning alpha value.
         let alpha = self.pixels[pix + 3];
         if alpha == 0 {
             return None;
@@ -178,7 +178,7 @@ pub fn draw_fn(app: &mut App) {
         }
     }
     graphics.draw_sprite(1536, 0, &sprites.obstacle_mode_button);
-    graphics.draw_sprite(1536, 1280, &sprites.dpad_right);
+    graphics.draw_sprite(1536, 1280, &sprites.dpad_arrow);
 
     // DRAWING TROOP SPRITES
     for (&entity, pos) in game_state.world.positions.iter() {
