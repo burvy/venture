@@ -177,6 +177,12 @@ pub fn draw_fn(app: &mut App) {
 
     // DRAWING TROOP SPRITES
     for (&entity, pos) in game_state.world.positions.iter() {
+        let Some(screen_x) = pos.x.checked_sub(game_state.camera.x) else {
+            continue;
+        };
+        let Some(screen_y) = pos.y.checked_sub(game_state.camera.y) else {
+            continue;
+        };
         let Some(sprite) = troop_sprite(&game_state.world, entity) else {
             continue;
         };
@@ -187,7 +193,7 @@ pub fn draw_fn(app: &mut App) {
             .get(&entity)
             .copied()
             .unwrap_or(0.0);
-        graphics.draw_sprite_rotated(pos.x, pos.y, sprite, rotation);
+        graphics.draw_sprite_rotated(screen_x, screen_y, sprite, rotation);
     }
 }
 

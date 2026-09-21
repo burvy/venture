@@ -24,6 +24,10 @@ pub struct App {
     pub proxy: Option<EventLoopProxy<Graphics>>,
     pub canvas_parent: Option<String>,
     pub cursor_pos: (f64, f64),
+    pub pan_up: bool,
+    pub pan_down: bool,
+    pub pan_left: bool,
+    pub pan_right: bool,
 }
 
 impl App {
@@ -42,8 +46,13 @@ impl App {
             }
         }
 
-        let entity = graphics::troop_at(&game_state.world, x, y);
-        let pos = systems::Position { x, y };
+        let world_x = x + game_state.camera.x;
+        let world_y = y + game_state.camera.y;
+        let entity = graphics::troop_at(&game_state.world, world_x, world_y);
+        let pos = systems::Position {
+            x: world_x,
+            y: world_y,
+        };
         match game_state.mode {
             systems::Mode::DEPLOY => {
                 if entity.is_none() {
@@ -54,8 +63,8 @@ impl App {
                 return;
             }
             systems::Mode::ERASE => {
-                if entity.is_some() {
-                    game_state.world.despawn(entity.expect("no entity somehow"));
+                if let Some(entity) = entity {
+                    game_state.world.despawn(entity);
                 }
             }
         }
@@ -68,6 +77,13 @@ impl ApplicationHandler<Graphics> for App {
             music.update();
         }
         if let Some(game_state) = self.game_state.as_mut() {
+            systems::pan_camera(
+                &mut game_state.camera,
+                self.pan_up,
+                self.pan_down,
+                self.pan_left,
+                self.pan_right,
+            );
             if !game_state.paused {
                 systems::update_troops(&mut game_state.world);
             }
@@ -168,6 +184,21 @@ impl ApplicationHandler<Graphics> for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                match event.physical_key {
+                    PhysicalKey::Code(KeyCode::KeyW) => {
+                        self.pan_up = event.state == ElementState::Pressed
+                    }
+                    PhysicalKey::Code(KeyCode::KeyA) => {
+                        self.pan_left = event.state == ElementState::Pressed
+                    }
+                    PhysicalKey::Code(KeyCode::KeyS) => {
+                        self.pan_down = event.state == ElementState::Pressed
+                    }
+                    PhysicalKey::Code(KeyCode::KeyD) => {
+                        self.pan_right = event.state == ElementState::Pressed
+                    }
+                    _ => {}
+                }
                 if event.state == ElementState::Pressed && !event.repeat {
                     if let Some(game_state) = self.game_state.as_mut() {
                         match event.physical_key {

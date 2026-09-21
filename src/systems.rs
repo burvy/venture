@@ -25,6 +25,9 @@ const RANGE_MARGIN: f64 = 4.0;
 /// random wobble per tick to make things interesting
 const TROOP_WANDER: f64 = 0.5;
 
+/// pixels the camera moves while movement is held
+const CAMERA_SPEED: u32 = 8;
+
 static BG_MUSIC: [&[u8]; 4] = [
     include_bytes!("../assets/sounds/music/song1.ogg"),
     include_bytes!("../assets/sounds/music/song2.ogg"),
@@ -88,6 +91,7 @@ pub struct GameState {
     pub paused: bool,
     pub team_mode: Team,
     pub world: World,
+    pub camera: Position,
 }
 
 impl GameState {
@@ -363,3 +367,18 @@ impl Obstacles {
 //         world.despawn(entity);
 //     }
 // }
+
+pub fn pan_camera(camera: &mut Position, up: bool, down: bool, left: bool, right: bool) {
+    if up {
+        camera.y = camera.y.saturating_sub(CAMERA_SPEED);
+    }
+    if down {
+        camera.y = camera.y.saturating_add(CAMERA_SPEED);
+    }
+    if left {
+        camera.x = camera.x.saturating_sub(CAMERA_SPEED);
+    }
+    if right {
+        camera.x = camera.x.saturating_add(CAMERA_SPEED);
+    }
+}

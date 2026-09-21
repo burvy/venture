@@ -29,6 +29,7 @@ pub fn run() {
             paused: false,
             team_mode: systems::Team::RED,
             world: systems::World::default(),
+            camera: systems::Position { x: 0, y: 0 },
         }),
         proxy: Some(proxy),
         canvas_parent: Some("game-wrapper".to_string()),
