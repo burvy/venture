@@ -16,11 +16,11 @@ pub struct Sprites {
     pub red_edit_mode: Sprite,
     pub blue_edit_mode: Sprite,
     pub obstacle_mode: Sprite,
-    pub delete_mode: Sprite,
+    pub erase_mode: Sprite,
     pub change_mode: Sprite,
     pub playing: Sprite,
     pub paused: Sprite,
-    pub delete: Sprite,
+    pub erase: Sprite,
     pub obstacle_mode_button: Sprite,
     pub dpad_arrow: Sprite,
 }
@@ -35,11 +35,11 @@ impl Sprites {
                 "../assets/images/blue-edit-mode.png"
             )),
             obstacle_mode: Sprite::from_bytes(include_bytes!("../assets/images/obstacle-mode.png")),
-            delete_mode: Sprite::from_bytes(include_bytes!("../assets/images/delete-mode.png")),
+            erase_mode: Sprite::from_bytes(include_bytes!("../assets/images/erase-mode.png")),
             change_mode: Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")),
             playing: Sprite::from_bytes(include_bytes!("../assets/images/playing.png")),
             paused: Sprite::from_bytes(include_bytes!("../assets/images/paused.png")),
-            delete: Sprite::from_bytes(include_bytes!("../assets/images/delete.png")),
+            erase: Sprite::from_bytes(include_bytes!("../assets/images/erase.png")),
             obstacle_mode_button: Sprite::from_bytes(include_bytes!(
                 "../assets/images/obstacle-mode-button.png"
             )),
@@ -67,8 +67,13 @@ impl Graphics {
         }
 
         let index = ((y * size.width + x) << 2) as usize;
+        let out = &mut self.pixels.frame_mut()[index..index + 4];
 
-        self.pixels.frame_mut()[index..index + 4].copy_from_slice(&color)
+        let alpha = color[3] as f64 / 255.0;
+        for channel in 0..3 {
+            out[channel] =
+                (color[channel] as f64 * alpha + out[channel] as f64 * (1.0 - alpha)) as u8;
+        }
     }
 
     fn draw_sprite(&mut self, x: u32, y: u32, sprite: &Sprite) {
@@ -137,7 +142,6 @@ impl Sprite {
     fn get_pixel_color(&self, x: u32, y: u32) -> Option<[u8; 4]> {
         // pixel buffer calculation
         let pix = ((y * self.width + x) << 2) as usize;
-        // TODO: sample screen color and manually blend RGB over returning alpha value.
         let alpha = self.pixels[pix + 3];
         if alpha == 0 {
             return None;
@@ -168,14 +172,14 @@ pub fn draw_fn(app: &mut App) {
         true => graphics.draw_sprite(512, 0, &sprites.paused),
         false => graphics.draw_sprite(512, 0, &sprites.playing),
     }
-    graphics.draw_sprite(1024, 0, &sprites.delete);
-    if game_state.mode == systems::Mode::ERASE {
-        graphics.draw_sprite(0, 128, &sprites.delete_mode);
-    } else {
-        match game_state.team_mode {
+    graphics.draw_sprite(1024, 0, &sprites.erase);
+    match game_state.mode {
+        systems::Mode::DEPLOY => match game_state.team_mode {
             systems::Team::RED => graphics.draw_sprite(0, 128, &sprites.red_edit_mode),
             systems::Team::BLUE => graphics.draw_sprite(0, 128, &sprites.blue_edit_mode),
-        }
+        },
+        systems::Mode::PAINT => graphics.draw_sprite(0, 128, &sprites.obstacle_mode),
+        systems::Mode::ERASE => graphics.draw_sprite(0, 128, &sprites.erase_mode),
     }
     graphics.draw_sprite(1536, 0, &sprites.obstacle_mode_button);
     graphics.draw_sprite(1536, 1280, &sprites.dpad_arrow);
@@ -241,9 +245,9 @@ pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 4] {
         systems::Button {
             x: 1024,
             y: 0,
-            width: sprites.delete.width,
-            height: sprites.delete.height,
-            on_click: systems::GameState::toggle_delete,
+            width: sprites.erase.width,
+            height: sprites.erase.height,
+            on_click: systems::GameState::toggle_erase,
         },
         systems::Button {
             x: 1536,

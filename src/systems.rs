@@ -86,6 +86,27 @@ impl Button {
     }
 }
 
+pub enum PanDirection {
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT,
+}
+
+pub struct DPadButton {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub direction: PanDirection,
+}
+
+impl DPadButton {
+    pub fn contains(&self, x: u32, y: u32) -> bool {
+        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+    }
+}
+
 pub struct GameState {
     pub mode: Mode,
     pub paused: bool,
@@ -96,9 +117,7 @@ pub struct GameState {
 
 impl GameState {
     pub fn change_teams(&mut self) {
-        if self.mode == Mode::ERASE {
-            self.toggle_deploy()
-        }
+        self.toggle_deploy();
         self.team_mode = if self.team_mode == Team::RED {
             Team::BLUE
         } else {
@@ -114,7 +133,7 @@ impl GameState {
     pub fn toggle_paint(&mut self) {
         self.mode = Mode::PAINT
     }
-    pub fn toggle_delete(&mut self) {
+    pub fn toggle_erase(&mut self) {
         self.mode = Mode::ERASE
     }
 }

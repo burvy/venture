@@ -48,7 +48,8 @@ impl App {
 
         let world_x = x + game_state.camera.x;
         let world_y = y + game_state.camera.y;
-        let entity: Option<systems::Entity> = graphics::troop_at(&game_state.world, world_x, world_y);
+        let entity: Option<systems::Entity> =
+            graphics::troop_at(&game_state.world, world_x, world_y);
         let pos = systems::Position {
             x: world_x,
             y: world_y,
@@ -204,6 +205,7 @@ impl ApplicationHandler<Graphics> for App {
                     if let Some(game_state) = self.game_state.as_mut() {
                         match event.physical_key {
                             PhysicalKey::Code(KeyCode::KeyM) => game_state.change_teams(),
+                            PhysicalKey::Code(KeyCode::KeyE) => game_state.toggle_erase(),
                             PhysicalKey::Code(KeyCode::KeyO) => game_state.toggle_paint(),
                             PhysicalKey::Code(KeyCode::KeyP) => game_state.toggle_pause(),
                             PhysicalKey::Code(KeyCode::Space) => game_state.toggle_pause(),
