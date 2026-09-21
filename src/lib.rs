@@ -27,6 +27,7 @@ pub fn run() {
         game_state: Some(systems::GameState {
             paused: false,
             deleting: false,
+            obstacle_mode: false,
             team_mode: systems::Team::RED,
             world: systems::World::default(),
         }),

@@ -78,6 +78,7 @@ impl Button {
 
 pub struct GameState {
     pub deleting: bool,
+    pub obstacle_mode: bool,
     pub paused: bool,
     pub team_mode: Team,
     pub world: World,
@@ -99,6 +100,9 @@ impl GameState {
     }
     pub fn toggle_pause(&mut self) {
         self.paused = !self.paused
+    }
+    pub fn toggle_obstacle_mode(&mut self) {
+        self.obstacle_mode = !self.obstacle_mode
     }
 }
 

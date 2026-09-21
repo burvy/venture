@@ -27,18 +27,24 @@ pub struct App {
 }
 
 impl App {
+    /// Determines what happens if you interact with something
+    /// at these x and y coordinates.
     fn handle_tap(&mut self, x: u32, y: u32) {
         let Some(game_state) = self.game_state.as_mut() else {
             return;
         };
         for button in graphics::buttons(game_state) {
+            // if x and y of the interaction fall within the
+            // bounds of the button
             if button.contains(x, y) {
                 (button.on_click)(game_state);
                 return; // early return, can't use functional tools
             }
         }
+        if game_state.obstacle_mode {
+            return;
+        }
         let pos = systems::Position { x, y };
-
         if let Some(entity) = graphics::troop_at(&game_state.world, x, y) {
             if game_state.deleting {
                 game_state.world.despawn(entity);
@@ -161,6 +167,8 @@ impl ApplicationHandler<Graphics> for App {
                         match event.physical_key {
                             PhysicalKey::Code(KeyCode::KeyM) => game_state.change_teams(),
                             PhysicalKey::Code(KeyCode::KeyO) => game_state.toggle_obstacle_mode(),
+                            PhysicalKey::Code(KeyCode::KeyP) => game_state.toggle_pause(),
+                            PhysicalKey::Code(KeyCode::Space) => game_state.toggle_pause(),
                             _ => {}
                         }
                     }

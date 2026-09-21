@@ -15,11 +15,13 @@ pub struct Sprites {
     pub blue_troop: Sprite,
     pub red_edit_mode: Sprite,
     pub blue_edit_mode: Sprite,
+    pub obstacle_mode: Sprite,
     pub delete_mode: Sprite,
     pub change_mode: Sprite,
     pub playing: Sprite,
     pub paused: Sprite,
     pub delete: Sprite,
+    pub obstacle_mode_button: Sprite,
 }
 
 impl Sprites {
@@ -31,11 +33,15 @@ impl Sprites {
             blue_edit_mode: Sprite::from_bytes(include_bytes!(
                 "../assets/images/blue-edit-mode.png"
             )),
+            obstacle_mode: Sprite::from_bytes(include_bytes!("../assets/images/obstacle-mode.png")),
             delete_mode: Sprite::from_bytes(include_bytes!("../assets/images/delete-mode.png")),
             change_mode: Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")),
             playing: Sprite::from_bytes(include_bytes!("../assets/images/playing.png")),
             paused: Sprite::from_bytes(include_bytes!("../assets/images/paused.png")),
             delete: Sprite::from_bytes(include_bytes!("../assets/images/delete.png")),
+            obstacle_mode_button: Sprite::from_bytes(include_bytes!(
+                "../assets/images/obstacle-mode-button.png"
+            )),
         }
     }
 }
@@ -167,6 +173,7 @@ pub fn draw_fn(app: &mut App) {
             systems::Team::BLUE => graphics.draw_sprite(0, 128, &sprites.blue_edit_mode),
         }
     }
+    graphics.draw_sprite(1536, 0, &sprites.obstacle_mode_button);
 
     // DRAWING TROOP SPRITES
     for (&entity, pos) in game_state.world.positions.iter() {
@@ -197,8 +204,7 @@ pub fn troop_at(world: &systems::World, x: u32, y: u32) -> Option<systems::Entit
 }
 
 /// definition of some buttons with logic
-
-pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 3] {
+pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 4] {
     let sprites = sprites();
     let play_pause = if game_state.paused {
         &sprites.paused
@@ -227,6 +233,13 @@ pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 3] {
             width: sprites.delete.width,
             height: sprites.delete.height,
             on_click: systems::GameState::toggle_delete,
+        },
+        systems::Button {
+            x: 1536,
+            y: 0,
+            width: sprites.obstacle_mode_button.width,
+            height: sprites.obstacle_mode_button.height,
+            on_click: systems::GameState::toggle_obstacle_mode,
         },
     ]
 }
