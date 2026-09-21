@@ -156,12 +156,13 @@ impl ApplicationHandler<Graphics> for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                if event.state == ElementState::Pressed
-                    && !event.repeat
-                    && event.physical_key == PhysicalKey::Code(KeyCode::KeyM)
-                {
+                if event.state == ElementState::Pressed && !event.repeat {
                     if let Some(game_state) = self.game_state.as_mut() {
-                        game_state.change_teams()
+                        match event.physical_key {
+                            PhysicalKey::Code(KeyCode::KeyM) => game_state.change_teams(),
+                            PhysicalKey::Code(KeyCode::KeyO) => game_state.toggle_obstacle_mode(),
+                            _ => {}
+                        }
                     }
                 }
             }
