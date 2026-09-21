@@ -26,7 +26,7 @@ const RANGE_MARGIN: f64 = 4.0;
 const TROOP_WANDER: f64 = 0.5;
 
 /// pixels the camera moves while movement is held
-const CAMERA_SPEED: u32 = 8;
+const CAMERA_SPEED: i32 = 8;
 
 static BG_MUSIC: [&[u8]; 4] = [
     include_bytes!("../assets/sounds/music/song1.ogg"),
@@ -69,8 +69,8 @@ pub enum Mode {
 }
 
 pub struct Position {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
 }
 pub struct Button {
     pub x: u32,
@@ -179,8 +179,8 @@ pub fn spawn_troop(world: &mut World, pos: Position, team: Team) -> Entity {
         Position {
             // reminder that saturating sub doesn't sub
             // past the data type's limits
-            x: pos.x.saturating_sub(sprite.width / 2),
-            y: pos.y.saturating_sub(sprite.height / 2),
+            x: pos.x - sprite.width as i32 / 2,
+            y: pos.y - sprite.height as i32 / 2,
         },
     );
     world.teams.insert(entity, team);
@@ -326,8 +326,8 @@ fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
         entity,
         position: Position {
             // `.floor()` is faster than `.round()`
-            x: (x + new_vx).floor() as u32,
-            y: (y + new_vy).floor() as u32,
+            x: (x + new_vx).floor() as i32,
+            y: (y + new_vy).floor() as i32,
         },
         rotation,
         velocity: (new_vx, new_vy),

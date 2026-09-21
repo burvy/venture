@@ -28,9 +28,24 @@ pub struct App {
     pub pan_down: bool,
     pub pan_left: bool,
     pub pan_right: bool,
+    pub is_mobile: bool,
+    pub dpad_touch: Option<u64>,
 }
 
 impl App {
+    fn set_pan(&mut self, direction: systems::PanDirection) {
+        self.pan_up = matches!(direction, systems::PanDirection::UP);
+        self.pan_down = matches!(direction, systems::PanDirection::DOWN);
+        self.pan_left = matches!(direction, systems::PanDirection::LEFT);
+        self.pan_right = matches!(direction, systems::PanDirection::RIGHT);
+    }
+
+    fn clear_pan(&mut self) {
+        self.pan_up = false;
+        self.pan_down = false;
+        self.pan_left = false;
+        self.pan_right = false;
+    }
     /// Determines what happens if you interact with something
     /// at these x and y coordinates.
     fn handle_tap(&mut self, x: u32, y: u32) {
@@ -46,8 +61,16 @@ impl App {
             }
         }
 
-        let world_x = x + game_state.camera.x;
-        let world_y = y + game_state.camera.y;
+        if self.is_mobile {
+            let size = self.graphics.as_ref().unwrap().pixels.texture().size();
+            // cancel everything else out when moving dpad like the other buttons
+            if graphics::dpad_hit(size.width, size.height, x, y).is_some() {
+                return;
+            }
+        }
+
+        let world_x = x as i32 + game_state.camera.x;
+        let world_y = y as i32 + game_state.camera.y;
         let entity: Option<systems::Entity> =
             graphics::troop_at(&game_state.world, world_x, world_y);
         let pos = systems::Position {
@@ -224,8 +247,26 @@ impl ApplicationHandler<Graphics> for App {
                 }
             }
             WindowEvent::Touch(touch) => {
-                if touch.phase == TouchPhase::Started {
-                    self.handle_tap(touch.location.x as u32, touch.location.y as u32);
+                self.is_mobile = true;
+                let (x, y) = (touch.location.x as u32, touch.location.y as u32);
+                match touch.phase {
+                    TouchPhase::Started => {
+                        let size = self.graphics.as_ref().unwrap().pixels.texture().size();
+                        match graphics::dpad_hit(size.width, size.height, x, y) {
+                            Some(direction) => {
+                                self.dpad_touch = Some(touch.id);
+                                self.set_pan(direction);
+                            }
+                            None => self.handle_tap(x, y),
+                        }
+                    }
+                    TouchPhase::Ended | TouchPhase::Cancelled => {
+                        if self.dpad_touch == Some(touch.id) {
+                            self.dpad_touch = None;
+                            self.clear_pan();
+                        }
+                    }
+                    TouchPhase::Moved => {}
                 }
             }
             _ => (),

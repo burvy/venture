@@ -25,6 +25,7 @@ pub struct Sprites {
     pub paused: Sprite,
     pub erase: Sprite,
     pub obstacle_mode_button: Sprite,
+    pub controls_info: Sprite,
     pub dpad_arrow: Sprite,
 }
 
@@ -46,6 +47,7 @@ impl Sprites {
             obstacle_mode_button: Sprite::from_bytes(include_bytes!(
                 "../assets/images/obstacle-mode-button.png"
             )),
+            controls_info: Sprite::from_bytes(include_bytes!("../assets/images/controls-info.png")),
             dpad_arrow: Sprite::from_bytes(include_bytes!("../assets/images/dpad-arrow.png")),
         }
     }
@@ -172,7 +174,26 @@ pub fn draw_fn(app: &mut App) {
     // LOADING SPRITES
     let sprites = sprites();
 
-    // DRAWING SPRITES
+    // DRAWING TROOP SPRITES (below other sprites)
+    for (&entity, pos) in game_state.world.positions.iter() {
+        let dx = pos.x - game_state.camera.x;
+        let dy = pos.y - game_state.camera.y;
+        if dx < 0 || dy < 0 {
+            continue;
+        }
+        let Some(sprite) = troop_sprite(&game_state.world, entity) else {
+            continue;
+        };
+        let rotation = game_state
+            .world
+            .rotations
+            .get(&entity)
+            .copied()
+            .unwrap_or(0.0);
+        graphics.draw_sprite_plus(dx as u32, dy as u32, sprite, rotation, 1.0);
+    }
+
+    // DRAWING OTHER SPRITES
     graphics.draw_sprite(0, 0, &sprites.change_mode);
     match game_state.paused {
         true => graphics.draw_sprite(512, 0, &sprites.paused),
@@ -188,47 +209,33 @@ pub fn draw_fn(app: &mut App) {
         systems::Mode::ERASE => graphics.draw_sprite(0, 128, &sprites.erase_mode),
     }
     graphics.draw_sprite(1536, 0, &sprites.obstacle_mode_button);
+    graphics.draw_sprite(512, 128, &sprites.controls_info);
     // Draw DPad buttons
-    let size = graphics.pixels.texture().size();
-    for button in dpad_buttons(size.width, size.height) {
-        let rotation = match button.direction {
-            systems::PanDirection::RIGHT => 0.0,
-            systems::PanDirection::DOWN => FRAC_PI_2,
-            systems::PanDirection::LEFT => PI,
-            systems::PanDirection::UP => -FRAC_PI_2,
-        };
-        let scale = button.width as f64 / sprites.dpad_arrow.width as f64;
-        graphics.draw_sprite_plus(button.x, button.y, &sprites.dpad_arrow, rotation, scale);
-    }
-
-    // DRAWING TROOP SPRITES
-    for (&entity, pos) in game_state.world.positions.iter() {
-        let Some(screen_x) = pos.x.checked_sub(game_state.camera.x) else {
-            continue;
-        };
-        let Some(screen_y) = pos.y.checked_sub(game_state.camera.y) else {
-            continue;
-        };
-        let Some(sprite) = troop_sprite(&game_state.world, entity) else {
-            continue;
-        };
-        // troop sprites can be rotated
-        let rotation = game_state
-            .world
-            .rotations
-            .get(&entity)
-            .copied()
-            .unwrap_or(0.0);
-        graphics.draw_sprite_plus(screen_x, screen_y, sprite, rotation, 1.0);
+    if app.is_mobile {
+        let size = graphics.pixels.texture().size();
+        for button in dpad_buttons(size.width, size.height) {
+            let rotation = match button.direction {
+                systems::PanDirection::RIGHT => 0.0,
+                systems::PanDirection::DOWN => FRAC_PI_2,
+                systems::PanDirection::LEFT => PI,
+                systems::PanDirection::UP => -FRAC_PI_2,
+            };
+            let scale = button.width as f64 / sprites.dpad_arrow.width as f64;
+            graphics.draw_sprite_plus(button.x, button.y, &sprites.dpad_arrow, rotation, scale);
+        }
     }
 }
 
-pub fn troop_at(world: &systems::World, x: u32, y: u32) -> Option<systems::Entity> {
+pub fn troop_at(world: &systems::World, x: i32, y: i32) -> Option<systems::Entity> {
     for (&entity, pos) in world.positions.iter() {
         let Some(sprite) = troop_sprite(world, entity) else {
             continue;
         };
-        if x >= pos.x && x < pos.x + sprite.width && y >= pos.y && y < pos.y + sprite.height {
+        if x >= pos.x
+            && x < pos.x + sprite.width as i32
+            && y >= pos.y
+            && y < pos.y + sprite.height as i32
+        {
             return Some(entity);
         }
     }
@@ -326,4 +333,16 @@ pub fn dpad_buttons(screen_width: u32, screen_height: u32) -> [systems::DPadButt
             direction: systems::PanDirection::RIGHT,
         },
     ]
+}
+
+pub fn dpad_hit(
+    screen_width: u32,
+    screen_height: u32,
+    x: u32,
+    y: u32,
+) -> Option<systems::PanDirection> {
+    dpad_buttons(screen_width, screen_height)
+        .into_iter()
+        .find(|b| b.contains(x, y))
+        .map(|b| b.direction)
 }
