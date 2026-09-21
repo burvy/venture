@@ -288,31 +288,22 @@ pub fn dpad_buttons(screen_width: u32, screen_height: u32) -> [systems::DPadButt
     let sprites = sprites();
     let (sprite_w, sprite_h) = (sprites.dpad_arrow.width, sprites.dpad_arrow.height);
 
-    let quarter_width = screen_width / 2;
-    let quarter_height = screen_height / 2;
-    // scale to the smaller axis
-    let scale = (quarter_width as f64 / (sprite_w as f64 * 2.0))
-        .min(quarter_height as f64 / (sprite_h as f64 * 2.0));
-
+    let center_x = screen_width / 2;
+    let center_y = screen_height / 2;
+    let scale =
+        (center_x as f64 / (sprite_w as f64 * 2.0)).min(center_y as f64 / (sprite_h as f64 * 2.0));
     let w = (sprite_w as f64 * scale).round() as u32;
     let h = (sprite_h as f64 * scale).round() as u32;
-
-    let quadrant_center_x = screen_width / 2 + screen_width / 4;
-    let quadrant_center_y = screen_height / 2 + screen_height / 4;
-
-    let center_x = quadrant_center_x.saturating_sub(w / 2);
-    let center_y = quadrant_center_y.saturating_sub(h / 2);
-
     [
         systems::DPadButton {
-            x: center_x,
+            x: center_x.saturating_sub(w / 2),
             y: center_y.saturating_sub(h),
             width: w,
             height: h,
             direction: systems::PanDirection::UP,
         },
         systems::DPadButton {
-            x: center_x,
+            x: center_x.saturating_sub(w / 2),
             y: center_y + h,
             width: w,
             height: h,
@@ -320,14 +311,14 @@ pub fn dpad_buttons(screen_width: u32, screen_height: u32) -> [systems::DPadButt
         },
         systems::DPadButton {
             x: center_x.saturating_sub(w),
-            y: center_y,
+            y: center_y.saturating_sub(h / 2),
             width: w,
             height: h,
             direction: systems::PanDirection::LEFT,
         },
         systems::DPadButton {
-            x: center_x + w,
-            y: center_y,
+            x: center_x,
+            y: center_y.saturating_sub(h / 2),
             width: w,
             height: h,
             direction: systems::PanDirection::RIGHT,
