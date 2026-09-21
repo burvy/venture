@@ -1,7 +1,5 @@
-use crate::{
-    graphics::{BLUE_TROOP, RED_TROOP},
-    sounds::Sounds,
-};
+use crate::graphics;
+use crate::sounds::Sounds;
 use std::{collections::HashMap, f64::consts::FRAC_PI_2};
 
 pub type Entity = u32;
@@ -115,24 +113,24 @@ impl World {
 }
 
 pub fn spawn_troop(world: &mut World, pos: Position, team: Team) -> Entity {
-    let red_troop = RED_TROOP.get();
-    let blue_troop = BLUE_TROOP.get();
-
+    let sprites = graphics::sprites();
     let sprite = match team {
-        Team::RED => red_troop,
-        Team::BLUE => blue_troop,
+        Team::RED => &sprites.red_troop,
+        Team::BLUE => &sprites.blue_troop,
     };
 
     let entity = world.new_entity();
     world.positions.insert(
         entity,
         Position {
-            x: pos.x - sprite.expect("couldn't unwrap sprite x").width / 2,
-            y: pos.y - sprite.expect("couldn't unwrap sprite y").width / 2,
+            // reminder that saturating sub doesn't sub
+            // past the data type's limits
+            x: pos.x.saturating_sub(sprite.width / 2),
+            y: pos.y.saturating_sub(sprite.height / 2),
         },
     );
     world.teams.insert(entity, team);
-    // my troop sprite faces upwards (for both troops)
+    // my troops face upwards
     world.rotations.insert(entity, 0.0);
     entity
 }

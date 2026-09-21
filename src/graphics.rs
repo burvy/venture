@@ -6,16 +6,50 @@ use image::RgbaImage;
 
 use std::sync::OnceLock;
 
-pub static RED_TROOP: OnceLock<Sprite> = OnceLock::new();
-pub static BLUE_TROOP: OnceLock<Sprite> = OnceLock::new();
-static RED_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
-static BLUE_EDIT_MODE: OnceLock<Sprite> = OnceLock::new();
-static DELETE_MODE: OnceLock<Sprite> = OnceLock::new();
-static CHANGE_MODE: OnceLock<Sprite> = OnceLock::new();
-static PLAYING: OnceLock<Sprite> = OnceLock::new();
-static PAUSED: OnceLock<Sprite> = OnceLock::new();
-static DELETE: OnceLock<Sprite> = OnceLock::new();
+static SPRITES: OnceLock<Sprites> = OnceLock::new();
 
+/// struct to hold the predefined sprites, not
+/// general sprites
+pub struct Sprites {
+    pub red_troop: Sprite,
+    pub blue_troop: Sprite,
+    pub red_edit_mode: Sprite,
+    pub blue_edit_mode: Sprite,
+    pub delete_mode: Sprite,
+    pub change_mode: Sprite,
+    pub playing: Sprite,
+    pub paused: Sprite,
+    pub delete: Sprite,
+}
+
+impl Sprites {
+    fn load() -> Self {
+        Sprites {
+            red_troop: Sprite::from_bytes(include_bytes!("../assets/images/red-troop.png")),
+            blue_troop: Sprite::from_bytes(include_bytes!("../assets/images/blue-troop.png")),
+            red_edit_mode: Sprite::from_bytes(include_bytes!("../assets/images/red-edit-mode.png")),
+            blue_edit_mode: Sprite::from_bytes(include_bytes!(
+                "../assets/images/blue-edit-mode.png"
+            )),
+            delete_mode: Sprite::from_bytes(include_bytes!("../assets/images/delete-mode.png")),
+            change_mode: Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")),
+            playing: Sprite::from_bytes(include_bytes!("../assets/images/playing.png")),
+            paused: Sprite::from_bytes(include_bytes!("../assets/images/paused.png")),
+            delete: Sprite::from_bytes(include_bytes!("../assets/images/delete.png")),
+        }
+    }
+}
+
+pub fn sprites() -> &'static Sprites {
+    SPRITES.get_or_init(Sprites::load)
+}
+
+fn troop_sprite(world: &systems::World, entity: systems::Entity) -> Option<&'static Sprite> {
+    match world.teams.get(&entity)? {
+        systems::Team::RED => Some(&sprites().red_troop),
+        systems::Team::BLUE => Some(&sprites().blue_troop),
+    }
+}
 impl Graphics {
     fn draw_pixel(&mut self, x: u32, y: u32, color: [u8; 4]) {
         let size = self.pixels.texture().size();
@@ -115,68 +149,46 @@ pub fn draw_fn(app: &mut App) {
         return;
     };
 
-    let red_troop = RED_TROOP
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-troop.png")));
-    let blue_troop = BLUE_TROOP
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/blue-troop.png")));
-    let red_edit_mode = RED_EDIT_MODE
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-edit-mode.png")));
-    let blue_edit_mode = BLUE_EDIT_MODE
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/blue-edit-mode.png")));
-    let delete_mode = DELETE_MODE
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/delete-mode.png")));
-    let change_mode = CHANGE_MODE
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")));
-    let playing =
-        PLAYING.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/playing.png")));
-    let paused =
-        PAUSED.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/paused.png")));
-    let delete =
-        DELETE.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/delete.png")));
+    // LOADING SPRITES
+    let sprites = sprites();
 
-    graphics.draw_sprite(0, 0, change_mode);
+    // DRAWING SPRITES
+    graphics.draw_sprite(0, 0, &sprites.change_mode);
     match game_state.paused {
-        true => graphics.draw_sprite(512, 0, paused),
-        false => graphics.draw_sprite(512, 0, playing),
+        true => graphics.draw_sprite(512, 0, &sprites.paused),
+        false => graphics.draw_sprite(512, 0, &sprites.playing),
     }
-    graphics.draw_sprite(1024, 0, delete);
+    graphics.draw_sprite(1024, 0, &sprites.delete);
     if game_state.deleting {
-        graphics.draw_sprite(0, 128, delete_mode);
+        graphics.draw_sprite(0, 128, &sprites.delete_mode);
     } else {
         match game_state.team_mode {
-            systems::Team::RED => graphics.draw_sprite(0, 128, red_edit_mode),
-            systems::Team::BLUE => graphics.draw_sprite(0, 128, blue_edit_mode),
+            systems::Team::RED => graphics.draw_sprite(0, 128, &sprites.red_edit_mode),
+            systems::Team::BLUE => graphics.draw_sprite(0, 128, &sprites.blue_edit_mode),
         }
     }
 
-    for (entity, pos) in game_state.world.positions.iter() {
-        let sprite = match game_state.world.teams.get(entity) {
-            Some(systems::Team::RED) => red_troop,
-            Some(systems::Team::BLUE) => blue_troop,
-            None => continue,
+    // DRAWING TROOP SPRITES
+    for (&entity, pos) in game_state.world.positions.iter() {
+        let Some(sprite) = troop_sprite(&game_state.world, entity) else {
+            continue;
         };
+        // troop sprites can be rotated
         let rotation = game_state
             .world
             .rotations
-            .get(entity)
+            .get(&entity)
             .copied()
             .unwrap_or(0.0);
         graphics.draw_sprite_rotated(pos.x, pos.y, sprite, rotation);
     }
 }
-pub fn troop_at(world: &systems::World, x: u32, y: u32) -> Option<systems::Entity> {
-    let red_troop = RED_TROOP
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/red-troop.png")));
-    let blue_troop = BLUE_TROOP
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/blue-troop.png")));
 
+pub fn troop_at(world: &systems::World, x: u32, y: u32) -> Option<systems::Entity> {
     for (&entity, pos) in world.positions.iter() {
-        let sprite = match world.teams.get(&entity) {
-            Some(systems::Team::RED) => red_troop,
-            Some(systems::Team::BLUE) => blue_troop,
-            None => continue,
+        let Some(sprite) = troop_sprite(world, entity) else {
+            continue;
         };
-        // origin is at top left corner
         if x >= pos.x && x < pos.x + sprite.width && y >= pos.y && y < pos.y + sprite.height {
             return Some(entity);
         }
@@ -185,23 +197,21 @@ pub fn troop_at(world: &systems::World, x: u32, y: u32) -> Option<systems::Entit
 }
 
 /// definition of some buttons with logic
+
 pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 3] {
-    let change_mode = CHANGE_MODE
-        .get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/change-mode.png")));
+    let sprites = sprites();
     let play_pause = if game_state.paused {
-        PAUSED.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/paused.png")))
+        &sprites.paused
     } else {
-        PLAYING.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/playing.png")))
+        &sprites.playing
     };
-    let delete =
-        DELETE.get_or_init(|| Sprite::from_bytes(include_bytes!("../assets/images/delete.png")));
 
     [
         systems::Button {
             x: 0,
             y: 0,
-            width: change_mode.width,
-            height: change_mode.height,
+            width: sprites.change_mode.width,
+            height: sprites.change_mode.height,
             on_click: systems::GameState::change_teams,
         },
         systems::Button {
@@ -214,8 +224,8 @@ pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 3] {
         systems::Button {
             x: 1024,
             y: 0,
-            width: delete.width,
-            height: delete.height,
+            width: sprites.delete.width,
+            height: sprites.delete.height,
             on_click: systems::GameState::toggle_delete,
         },
     ]
