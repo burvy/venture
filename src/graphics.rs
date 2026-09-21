@@ -289,7 +289,7 @@ pub fn dpad_buttons(screen_width: u32, screen_height: u32) -> [systems::DPadButt
     let (sprite_w, sprite_h) = (sprites.dpad_arrow.width, sprites.dpad_arrow.height);
 
     let center_x = screen_width / 2;
-    let center_y = screen_height / 2;
+    let center_y = 3 * screen_height / 4;
     let scale =
         (center_x as f64 / (sprite_w as f64 * 2.0)).min(center_y as f64 / (sprite_h as f64 * 2.0));
     let w = (sprite_w as f64 * scale).round() as u32;
@@ -311,14 +311,14 @@ pub fn dpad_buttons(screen_width: u32, screen_height: u32) -> [systems::DPadButt
         },
         systems::DPadButton {
             x: center_x.saturating_sub(w),
-            y: center_y.saturating_sub(h / 2),
+            y: center_y,
             width: w,
             height: h,
             direction: systems::PanDirection::LEFT,
         },
         systems::DPadButton {
             x: center_x,
-            y: center_y.saturating_sub(h / 2),
+            y: center_y,
             width: w,
             height: h,
             direction: systems::PanDirection::RIGHT,
