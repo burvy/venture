@@ -88,7 +88,8 @@ impl Graphics {
             }
         }
     }
-    fn draw_sprite_rotated(&mut self, x: u32, y: u32, sprite: &Sprite, angle: f64, scale: f64) {
+    /// `draw_sprite` but with angle and scale (more computationally expensive)
+    fn draw_sprite_plus(&mut self, x: u32, y: u32, sprite: &Sprite, angle: f64, scale: f64) {
         let (center_x, center_y) = (sprite.width as f64 / 2.0, sprite.height as f64 / 2.0);
         let (cos_a, sin_a) = (angle.cos(), angle.sin());
         let scaled_width = (sprite.width as f64 * scale).round() as u32;
@@ -197,7 +198,7 @@ pub fn draw_fn(app: &mut App) {
             systems::PanDirection::UP => -FRAC_PI_2,
         };
         let scale = button.width as f64 / sprites.dpad_arrow.width as f64;
-        graphics.draw_sprite_rotated(button.x, button.y, &sprites.dpad_arrow, rotation, scale);
+        graphics.draw_sprite_plus(button.x, button.y, &sprites.dpad_arrow, rotation, scale);
     }
 
     // DRAWING TROOP SPRITES
@@ -218,7 +219,7 @@ pub fn draw_fn(app: &mut App) {
             .get(&entity)
             .copied()
             .unwrap_or(0.0);
-        graphics.draw_sprite_rotated(screen_x, screen_y, sprite, rotation, 1.0);
+        graphics.draw_sprite_plus(screen_x, screen_y, sprite, rotation, 1.0);
     }
 }
 
