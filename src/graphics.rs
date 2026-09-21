@@ -4,7 +4,10 @@ use crate::{
 };
 use image::RgbaImage;
 
-use std::sync::OnceLock;
+use std::{
+    f64::consts::{FRAC_PI_2, PI},
+    sync::OnceLock,
+};
 
 static SPRITES: OnceLock<Sprites> = OnceLock::new();
 
@@ -182,7 +185,17 @@ pub fn draw_fn(app: &mut App) {
         systems::Mode::ERASE => graphics.draw_sprite(0, 128, &sprites.erase_mode),
     }
     graphics.draw_sprite(1536, 0, &sprites.obstacle_mode_button);
-    graphics.draw_sprite(1536, 1280, &sprites.dpad_arrow);
+    // Draw DPad buttons
+    let size = graphics.pixels.texture().size();
+    for button in dpad_buttons(size.width, size.height) {
+        let rotation = match button.direction {
+            systems::PanDirection::RIGHT => 0.0,
+            systems::PanDirection::DOWN => FRAC_PI_2,
+            systems::PanDirection::LEFT => PI,
+            systems::PanDirection::UP => -FRAC_PI_2,
+        };
+        graphics.draw_sprite_rotated(button.x, button.y, &sprites.dpad_arrow, rotation);
+    }
 
     // DRAWING TROOP SPRITES
     for (&entity, pos) in game_state.world.positions.iter() {
@@ -255,6 +268,49 @@ pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 4] {
             width: sprites.obstacle_mode_button.width,
             height: sprites.obstacle_mode_button.height,
             on_click: systems::GameState::toggle_paint,
+        },
+    ]
+}
+
+/// Interactable DPad buttons for mobile
+pub fn dpad_buttons(screen_width: u32, screen_height: u32) -> [systems::DPadButton; 4] {
+    let sprites = sprites();
+    let (w, h) = (sprites.dpad_arrow.width, sprites.dpad_arrow.height);
+
+    let quadrant_center_x = screen_width / 2 + screen_width / 4;
+    let quadrant_center_y = screen_height / 2 + screen_height / 4;
+
+    let center_x = quadrant_center_x.saturating_sub(w / 2);
+    let center_y = quadrant_center_y.saturating_sub(h / 2);
+
+    [
+        systems::DPadButton {
+            x: center_x,
+            y: center_y.saturating_sub(h),
+            width: w,
+            height: h,
+            direction: systems::PanDirection::UP,
+        },
+        systems::DPadButton {
+            x: center_x,
+            y: center_y + h,
+            width: w,
+            height: h,
+            direction: systems::PanDirection::DOWN,
+        },
+        systems::DPadButton {
+            x: center_x.saturating_sub(w),
+            y: center_y,
+            width: w,
+            height: h,
+            direction: systems::PanDirection::LEFT,
+        },
+        systems::DPadButton {
+            x: center_x + w,
+            y: center_y,
+            width: w,
+            height: h,
+            direction: systems::PanDirection::RIGHT,
         },
     ]
 }
