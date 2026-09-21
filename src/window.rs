@@ -41,17 +41,23 @@ impl App {
                 return; // early return, can't use functional tools
             }
         }
-        if game_state.obstacle_mode {
-            return;
-        }
+
+        let entity = graphics::troop_at(&game_state.world, x, y);
         let pos = systems::Position { x, y };
-        if let Some(entity) = graphics::troop_at(&game_state.world, x, y) {
-            if game_state.deleting {
-                game_state.world.despawn(entity);
+        match game_state.mode {
+            systems::Mode::DEPLOY => {
+                if entity.is_none() {
+                    systems::spawn_troop(&mut game_state.world, pos, game_state.team_mode);
+                }
+            }
+            systems::Mode::PAINT => {
                 return;
             }
-        } else {
-            systems::spawn_troop(&mut game_state.world, pos, game_state.team_mode);
+            systems::Mode::ERASE => {
+                if entity.is_some() {
+                    game_state.world.despawn(entity.expect("no entity somehow"));
+                }
+            }
         }
     }
 }
@@ -166,7 +172,7 @@ impl ApplicationHandler<Graphics> for App {
                     if let Some(game_state) = self.game_state.as_mut() {
                         match event.physical_key {
                             PhysicalKey::Code(KeyCode::KeyM) => game_state.change_teams(),
-                            PhysicalKey::Code(KeyCode::KeyO) => game_state.toggle_obstacle_mode(),
+                            PhysicalKey::Code(KeyCode::KeyO) => game_state.toggle_paint(),
                             PhysicalKey::Code(KeyCode::KeyP) => game_state.toggle_pause(),
                             PhysicalKey::Code(KeyCode::Space) => game_state.toggle_pause(),
                             _ => {}

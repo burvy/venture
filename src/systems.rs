@@ -1,7 +1,7 @@
 use crate::graphics;
 use crate::sounds::Sounds;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     f64::consts::{FRAC_PI_2, PI, TAU},
 };
 
@@ -58,6 +58,13 @@ pub enum Team {
     BLUE,
 }
 
+#[derive(PartialEq)]
+pub enum Mode {
+    DEPLOY,
+    PAINT,
+    ERASE,
+}
+
 pub struct Position {
     pub x: u32,
     pub y: u32,
@@ -77,8 +84,7 @@ impl Button {
 }
 
 pub struct GameState {
-    pub deleting: bool,
-    pub obstacle_mode: bool,
+    pub mode: Mode,
     pub paused: bool,
     pub team_mode: Team,
     pub world: World,
@@ -86,8 +92,8 @@ pub struct GameState {
 
 impl GameState {
     pub fn change_teams(&mut self) {
-        if self.deleting {
-            self.deleting = false
+        if self.mode == Mode::ERASE {
+            self.toggle_deploy()
         }
         self.team_mode = if self.team_mode == Team::RED {
             Team::BLUE
@@ -95,14 +101,17 @@ impl GameState {
             Team::RED
         }
     }
-    pub fn toggle_delete(&mut self) {
-        self.deleting = !self.deleting
-    }
     pub fn toggle_pause(&mut self) {
         self.paused = !self.paused
     }
-    pub fn toggle_obstacle_mode(&mut self) {
-        self.obstacle_mode = !self.obstacle_mode
+    pub fn toggle_deploy(&mut self) {
+        self.mode = Mode::DEPLOY
+    }
+    pub fn toggle_paint(&mut self) {
+        self.mode = Mode::PAINT
+    }
+    pub fn toggle_delete(&mut self) {
+        self.mode = Mode::ERASE
     }
 }
 
@@ -113,6 +122,7 @@ pub struct World {
     pub teams: HashMap<Entity, Team>,
     pub rotations: HashMap<Entity, f64>,
     pub velocities: HashMap<Entity, (f64, f64)>,
+    pub obstacles: Obstacles,
 }
 
 impl World {
@@ -324,5 +334,32 @@ pub fn update_troops(world: &mut World) {
         if let Some(rotation) = update.rotation {
             world.rotations.insert(update.entity, rotation);
         }
+    }
+}
+
+#[derive(Default)]
+pub struct Obstacles {
+    pixels: HashSet<(u32, u32)>,
+}
+// TODO: hiiii welcome back anyway:
+// add these obstacles methods
+// get something in window.rs's PAINT arm where you do tapping things
+// do drag tracking
+impl Obstacles {
+    pub fn paint(&mut self, x: u32, y: u32, radius: u32);
+    pub fn erase(&mut self, x: u32, y: u32, radius: u32);
+    pub fn is_blocked(&self, x: u32, y: u32) -> bool;
+    pub fn painted_pixels(&self) -> impl Iterator<Item = (u32, u32)> + '_;
+}
+pub fn erase_at(world: &mut World, x: u32, y: u32, radius: u32) {
+    world.obstacles.erase(x, y, radius);
+    let doomed: Vec<Entity> = world
+        .positions
+        .iter()
+        .filter(|&(&e, pos)| troop_in_brush(pos, troop_sprite_for(world, e), x, y, radius))
+        .map(|(&e, _)| e)
+        .collect();
+    for entity in doomed {
+        world.despawn(entity);
     }
 }

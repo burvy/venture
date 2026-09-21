@@ -165,7 +165,7 @@ pub fn draw_fn(app: &mut App) {
         false => graphics.draw_sprite(512, 0, &sprites.playing),
     }
     graphics.draw_sprite(1024, 0, &sprites.delete);
-    if game_state.deleting {
+    if game_state.mode == systems::Mode::ERASE {
         graphics.draw_sprite(0, 128, &sprites.delete_mode);
     } else {
         match game_state.team_mode {
@@ -239,7 +239,7 @@ pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 4] {
             y: 0,
             width: sprites.obstacle_mode_button.width,
             height: sprites.obstacle_mode_button.height,
-            on_click: systems::GameState::toggle_obstacle_mode,
+            on_click: systems::GameState::toggle_paint,
         },
     ]
 }
