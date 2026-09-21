@@ -88,21 +88,23 @@ impl Graphics {
             }
         }
     }
-    fn draw_sprite_rotated(&mut self, x: u32, y: u32, sprite: &Sprite, angle: f64) {
+    fn draw_sprite_rotated(&mut self, x: u32, y: u32, sprite: &Sprite, angle: f64, scale: f64) {
         let (center_x, center_y) = (sprite.width as f64 / 2.0, sprite.height as f64 / 2.0);
         let (cos_a, sin_a) = (angle.cos(), angle.sin());
+        let scaled_width = (sprite.width as f64 * scale).round() as u32;
+        let scaled_height = (sprite.height as f64 * scale).round() as u32;
 
-        for i in 0..sprite.width {
-            for j in 0..sprite.height {
+        for i in 0..scaled_width {
+            for j in 0..scaled_height {
                 // the offset of the pixel from the center
-                let offset_x = i as f64 - center_x;
-                let offset_y = j as f64 - center_y;
+                let offset_x = i as f64 - center_x * scale;
+                let offset_y = j as f64 - center_y * scale;
 
                 // rotate backwards to find which source pixel belongs here
                 // this is the inverse 2D rotation matrix, best to look it
-                // up if you want to prove it.
-                let og_x = offset_x * cos_a + offset_y * sin_a + center_x;
-                let og_y = -offset_x * sin_a + offset_y * cos_a + center_y;
+                // up if you want to prove it. Plus there is a scale factor
+                let og_x = (offset_x * cos_a + offset_y * sin_a) / scale + center_x;
+                let og_y = (-offset_x * sin_a + offset_y * cos_a) / scale + center_y;
 
                 // don't draw out of bounds
                 let rounded_x = og_x.round();
@@ -194,7 +196,8 @@ pub fn draw_fn(app: &mut App) {
             systems::PanDirection::LEFT => PI,
             systems::PanDirection::UP => -FRAC_PI_2,
         };
-        graphics.draw_sprite_rotated(button.x, button.y, &sprites.dpad_arrow, rotation);
+        let scale = button.width as f64 / sprites.dpad_arrow.width as f64;
+        graphics.draw_sprite_rotated(button.x, button.y, &sprites.dpad_arrow, rotation, scale);
     }
 
     // DRAWING TROOP SPRITES
@@ -215,7 +218,7 @@ pub fn draw_fn(app: &mut App) {
             .get(&entity)
             .copied()
             .unwrap_or(0.0);
-        graphics.draw_sprite_rotated(screen_x, screen_y, sprite, rotation);
+        graphics.draw_sprite_rotated(screen_x, screen_y, sprite, rotation, 1.0);
     }
 }
 
@@ -275,7 +278,16 @@ pub fn buttons(game_state: &systems::GameState) -> [systems::Button; 4] {
 /// Interactable DPad buttons for mobile
 pub fn dpad_buttons(screen_width: u32, screen_height: u32) -> [systems::DPadButton; 4] {
     let sprites = sprites();
-    let (w, h) = (sprites.dpad_arrow.width, sprites.dpad_arrow.height);
+    let (sprite_w, sprite_h) = (sprites.dpad_arrow.width, sprites.dpad_arrow.height);
+
+    let quarter_width = screen_width / 2;
+    let quarter_height = screen_height / 2;
+    // scale to the smaller axis
+    let scale = (quarter_width as f64 / (sprite_w as f64 * 2.0))
+        .min(quarter_height as f64 / (sprite_h as f64 * 2.0));
+
+    let w = (sprite_w as f64 * scale).round() as u32;
+    let h = (sprite_h as f64 * scale).round() as u32;
 
     let quadrant_center_x = screen_width / 2 + screen_width / 4;
     let quadrant_center_y = screen_height / 2 + screen_height / 4;
