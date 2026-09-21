@@ -6,13 +6,17 @@ pub type Entity = u32;
 
 /// pixels a troop can move per tick
 const TROOP_SPEED: f64 = 2.0;
-/// "range" to maintain from teammates (64^2)
-const TROOP_TEAM_RANGE: f64 = 4096.0;
-/// "range" to maintain from teammates (512^2)
-const TROOP_ENEM_RANGE: f64 = 262144.0;
-/// margin of error to so troops stay fixed on the
-/// border of being too close or too far, preventing jittering
+/// speed multiplier of a troop trying to not merge with their teammates
+const TROOP_SPREAD_SPEED_MULTIPLIER: f64 = 3.0;
+/// pixels to maintain from teammates
+const TROOP_TEAM_RANGE: f64 = 64.0;
+/// pixels to maintain from enemies
+const TROOP_ENEM_RANGE: f64 = 512.0;
+/// pixels of margin around a range so troops don't jitter
+/// right at the border of being too close or too far
 const RANGE_MARGIN: f64 = 4.0;
+/// random wobble per tick to make things interesting
+const TROOP_WANDER: f64 = 0.5;
 
 static BG_MUSIC: [&[u8]; 4] = [
     include_bytes!("../assets/sounds/music/song1.ogg"),
@@ -135,112 +139,141 @@ pub fn spawn_troop(world: &mut World, pos: Position, team: Team) -> Entity {
     entity
 }
 
-/// Maintains best distance between enemies and also between friends
-/// TODO: Add a bit of randomness into their movement
-pub fn update_troops(world: &mut World) {
-    // you may use either `teams` or `positions`, they're the
-    // same entities
-    let entities: Vec<Entity> = world.teams.keys().copied().collect();
+fn get_speed_for(axis: f64) -> f64 {
+    if axis > 0.0 {
+        TROOP_SPEED
+    } else if axis < 0.0 {
+        -TROOP_SPEED
+    } else {
+        0.0
+    }
+}
 
-    for entity in entities {
-        let Some(&own_team) = world.teams.get(&entity) else {
-            continue;
-        };
-        let Some(pos) = world.positions.get(&entity) else {
-            continue;
-        };
+struct TroopUpdate {
+    entity: Entity,
+    position: Position,
+    rotation: Option<f64>,
+}
 
-        let (x, y) = (pos.x as f64, pos.y as f64);
-
-        // dx, dy, distance
-        let mut nearest_enem: Option<(f64, f64, f64)> = None;
-        let mut nearest_ally: Option<(f64, f64, f64)> = None;
-
-        // TODO: add a more efficient check that DOESN'T
-        // grow by O(n^2) because we check every single
-        // entity
-        for (&other, other_pos) in world.positions.iter() {
-            if other == entity {
-                continue;
-            }
+#[derive(PartialEq)]
+enum OnMyTeam {
+    Yes,
+    No,
+}
+/// Returns the position and distance of the nearest entity
+/// its Option<(dx, dy, distance squared)>
+///
+/// TODO: add a more efficient check that DOESN'T
+/// grow by O(n^2) because we check every single
+/// entity
+fn nearest(
+    world: &World,
+    entity: Entity,
+    own_team: Team,
+    x: f64,
+    y: f64,
+    same_team: OnMyTeam,
+) -> Option<(f64, f64, f64)> {
+    world
+        .positions
+        .iter()
+        .filter(|&(&other, _)| {
+            other != entity
+                && (world.teams.get(&other) == Some(&own_team)) == (same_team == OnMyTeam::Yes)
+        })
+        .map(|(_, other_pos)| {
             let dx = other_pos.x as f64 - x;
             let dy = other_pos.y as f64 - y;
+            (dx, dy, dx * dx + dy * dy)
+        })
+        // `min_by` works like current champion vs next challenger
+        // the smallest one wins. it's also secretly a `fold`
+        .min_by(|a, b| a.2.partial_cmp(&b.2).expect("NaN value encountered"))
+}
 
-            let dist_sq = dx * dx + dy * dy;
+/// Give the next step for one singular troop
+/// Maintains best distance between enemies and also between friends
+/// TODO: Add a bit of randomness into their movement
+fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
+    let &own_team = world.teams.get(&entity)?;
+    let pos = world.positions.get(&entity)?;
+    let (x, y) = (pos.x as f64, pos.y as f64);
 
-            // if the last best entity's "distance" was further than
-            // the "distance" to this entity or there is none,
-            // set the best entity to this one because this one
-            // is a better target (it's closer)
-            //
-            // Note that the distance is not the true
-            // distance, but it should be fine.
-            //
-            // TODO: tweak how entities are selected as the AI
-            // gets more advanced
-            let update_closest_fn = |pos: &mut Option<(f64, f64, f64)>| {
-                if let Some(closest) = pos {
-                    if closest.2 > dist_sq {
-                        *pos = Some((dx, dy, dist_sq));
-                    }
-                } else {
-                    *pos = Some((dx, dy, dist_sq));
-                }
-            };
+    let nearest_enem = nearest(world, entity, own_team, x, y, OnMyTeam::No);
+    let nearest_ally = nearest(world, entity, own_team, x, y, OnMyTeam::Yes);
 
-            if world.teams.get(&other) != Some(&own_team) {
-                update_closest_fn(&mut nearest_enem);
-            } else {
-                update_closest_fn(&mut nearest_ally);
-            }
+    let mut move_x = 0.0;
+    let mut move_y = 0.0;
+    let mut rotation = None;
+
+    if let Some((dx, dy, _)) = nearest_enem {
+        // + pi / 2 because sprite originally faces up
+        rotation = Some(dy.atan2(dx) + FRAC_PI_2);
+    }
+
+    // ally that is too close to me
+    let crowded_by_ally =
+        nearest_ally.filter(|&(_, _, dist_sq)| dist_sq < TROOP_TEAM_RANGE.powi(2));
+
+    if let Some((dx, dy, _)) = crowded_by_ally {
+        // move away from crowding allies first!
+        move_x -= get_speed_for(dx) * TROOP_SPREAD_SPEED_MULTIPLIER;
+        move_y -= get_speed_for(dy) * TROOP_SPREAD_SPEED_MULTIPLIER;
+    } else if let Some((dx, dy, dist_sq)) = nearest_enem {
+        // maintain range with enemies afterwards
+        let x_dir = get_speed_for(dx);
+        let y_dir = get_speed_for(dy);
+        if dist_sq > (TROOP_ENEM_RANGE + RANGE_MARGIN).powi(2) {
+            move_x += x_dir;
+            move_y += y_dir;
+        } else if dist_sq < (TROOP_ENEM_RANGE - RANGE_MARGIN).powi(2) {
+            move_x -= x_dir;
+            move_y -= y_dir;
         }
+    }
 
-        let mut move_x = 0.0;
-        let mut move_y = 0.0;
+    if move_x != 0.0 || move_y != 0.0 {
+        // random is [0, 1), we want [-TROOP_WANDER, TROOP_WANDER)
+        move_x += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
+        move_y += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
+    }
+    if move_x == 0.0 && move_y == 0.0 && rotation.is_none() {
+        return None;
+    }
 
-        let determine_troop_speed = |axis: f64| {
-            if axis > 0.0 {
-                TROOP_SPEED
-            } else if axis < 0.0 {
-                -TROOP_SPEED
-            } else {
-                0.0
-            }
-        };
-        if let Some((dx, dy, crude_dist)) = nearest_enem {
-            let x_dir = determine_troop_speed(dx);
-            let y_dir = determine_troop_speed(dy);
-            if crude_dist > TROOP_ENEM_RANGE + RANGE_MARGIN {
-                move_x += x_dir;
-                move_y += y_dir;
-            } else if crude_dist < TROOP_ENEM_RANGE - RANGE_MARGIN {
-                move_x -= x_dir;
-                move_y -= y_dir;
-            }
-        }
+    Some(TroopUpdate {
+        entity,
+        position: Position {
+            // .floor() is faster than .round()
+            x: (x + move_x).floor() as u32,
+            y: (y + move_y).floor() as u32,
+        },
+        rotation,
+    })
+}
 
-        if let Some((dx, dy, _)) = nearest_enem {
-            // + pi / 2 because sprite originally faces up
-            let facing = dy.atan2(dx) + FRAC_PI_2;
-            world.rotations.insert(entity, facing);
-        }
+/// aggregates all the troop updates and runs them all at once
+/// like the game of life, but 2d! Check out my other repo: life-v2
+pub fn update_troops(world: &mut World) {
+    // takes the world and all entities
+    // and updates them one step
+    //
+    // note that we can look at the keys of
+    // world.teams or world.positions, or
+    // world.rotations. They're the same
+    // entity ids. The values associated
+    // with the keys are different though.
+    let updates: Vec<TroopUpdate> = world
+        .positions
+        .keys()
+        .copied()
+        .filter_map(|entity| troop_update(world, entity))
+        .collect();
 
-        if let Some((dx, dy, crude_dist)) = nearest_ally {
-            if crude_dist < TROOP_TEAM_RANGE {
-                // colliding with teammates is more important to resolve
-                let away_x = -determine_troop_speed(dx) * 2.0;
-                let away_y = -determine_troop_speed(dy) * 2.0;
-                move_x += away_x;
-                move_y += away_y;
-            }
-        }
-
-        if move_x != 0.0 || move_y != 0.0 {
-            let new_pos = Position {
-                x: (x + move_x).floor() as u32,
-                y: (y + move_y).floor() as u32,
-            };
-            world.positions.insert(entity, new_pos);
+    for update in updates {
+        world.positions.insert(update.entity, update.position);
+        if let Some(rotation) = update.rotation {
+            world.rotations.insert(update.entity, rotation);
         }
     }
 }

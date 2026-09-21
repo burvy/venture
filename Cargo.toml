@@ -7,6 +7,7 @@ edition = "2024"
 image = "0.25.10"
 pixels = "0.17.2"
 winit = "0.30.13"
+rand = "0.10.3"
 
 [lib]
 crate-type = ["rlib"]
@@ -17,6 +18,7 @@ wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "0.1"
 js-sys = "0.3.105"
 web-sys = { version = "0.3", features = ["Document", "Element", "Window", "HtmlCanvasElement", "Blob", "BlobPropertyBag", "HtmlAudioElement", "Url"] }
+getrandom = {version="0.4.3", features=["wasm_js"]}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = "0.4"
