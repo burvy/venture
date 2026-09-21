@@ -25,9 +25,8 @@ pub fn run() {
 
     let app = App {
         game_state: Some(systems::GameState {
+            mode: systems::Mode::DEPLOY,
             paused: false,
-            deleting: false,
-            obstacle_mode: false,
             team_mode: systems::Team::RED,
             world: systems::World::default(),
         }),

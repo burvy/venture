@@ -346,20 +346,20 @@ pub struct Obstacles {
 // get something in window.rs's PAINT arm where you do tapping things
 // do drag tracking
 impl Obstacles {
-    pub fn paint(&mut self, x: u32, y: u32, radius: u32);
-    pub fn erase(&mut self, x: u32, y: u32, radius: u32);
-    pub fn is_blocked(&self, x: u32, y: u32) -> bool;
-    pub fn painted_pixels(&self) -> impl Iterator<Item = (u32, u32)> + '_;
+    // pub fn paint(&mut self, x: u32, y: u32, radius: u32);
+    // pub fn erase(&mut self, x: u32, y: u32, radius: u32);
+    // pub fn is_blocked(&self, x: u32, y: u32) -> bool;
+    // pub fn painted_pixels(&self) -> impl Iterator<Item = (u32, u32)> + '_;
 }
-pub fn erase_at(world: &mut World, x: u32, y: u32, radius: u32) {
-    world.obstacles.erase(x, y, radius);
-    let doomed: Vec<Entity> = world
-        .positions
-        .iter()
-        .filter(|&(&e, pos)| troop_in_brush(pos, troop_sprite_for(world, e), x, y, radius))
-        .map(|(&e, _)| e)
-        .collect();
-    for entity in doomed {
-        world.despawn(entity);
-    }
-}
+// pub fn erase_at(world: &mut World, x: u32, y: u32, radius: u32) {
+//     world.obstacles.erase(x, y, radius);
+//     let doomed: Vec<Entity> = world
+//         .positions
+//         .iter()
+//         .filter(|&(&e, pos)| troop_in_brush(pos, troop_sprite_for(world, e), x, y, radius))
+//         .map(|(&e, _)| e)
+//         .collect();
+//     for entity in doomed {
+//         world.despawn(entity);
+//     }
+// }
