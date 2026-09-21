@@ -1,6 +1,9 @@
 use crate::graphics;
 use crate::sounds::Sounds;
-use std::{collections::HashMap, f64::consts::FRAC_PI_2};
+use std::{
+    collections::HashMap,
+    f64::consts::{FRAC_PI_2, PI, TAU},
+};
 
 pub type Entity = u32;
 
@@ -8,6 +11,10 @@ pub type Entity = u32;
 const TROOP_SPEED: f64 = 2.0;
 /// speed multiplier of a troop trying to not merge with their teammates
 const TROOP_SPREAD_SPEED_MULTIPLIER: f64 = 3.0;
+/// how much a troop's velocity can change per tick
+const TROOP_ACCELERATION: f64 = 0.3;
+/// how many radians a troop can turn per tick
+const TROOP_TURN_RATE: f64 = 0.1;
 /// pixels to maintain from teammates
 const TROOP_TEAM_RANGE: f64 = 64.0;
 /// pixels to maintain from enemies
@@ -101,6 +108,7 @@ pub struct World {
     pub positions: HashMap<Entity, Position>,
     pub teams: HashMap<Entity, Team>,
     pub rotations: HashMap<Entity, f64>,
+    pub velocities: HashMap<Entity, (f64, f64)>,
 }
 
 impl World {
@@ -110,9 +118,14 @@ impl World {
         id
     }
 
+    /// despawns the entity and removes
+    /// all those extra copies of the entity's
+    /// info used for acceleration
     pub fn despawn(&mut self, entity: Entity) {
         self.positions.remove(&entity);
         self.teams.remove(&entity);
+        self.rotations.remove(&entity);
+        self.velocities.remove(&entity);
     }
 }
 
@@ -136,6 +149,8 @@ pub fn spawn_troop(world: &mut World, pos: Position, team: Team) -> Entity {
     world.teams.insert(entity, team);
     // my troops face upwards
     world.rotations.insert(entity, 0.0);
+
+    world.velocities.insert(entity, (0.0, 0.0));
     entity
 }
 
@@ -153,8 +168,8 @@ struct TroopUpdate {
     entity: Entity,
     position: Position,
     rotation: Option<f64>,
+    velocity: (f64, f64),
 }
-
 #[derive(PartialEq)]
 enum OnMyTeam {
     Yes,
@@ -191,6 +206,25 @@ fn nearest(
         .min_by(|a, b| a.2.partial_cmp(&b.2).expect("NaN value encountered"))
 }
 
+fn accelerate_towards(current: f64, target: f64, accel: f64) -> f64 {
+    if current < target {
+        (current + accel).min(target)
+    } else if current > target {
+        (current - accel).max(target)
+    } else {
+        current
+    }
+}
+
+fn turn_towards(current: f64, target: f64, max_turn: f64) -> f64 {
+    let mut diff = (target - current) % TAU;
+    if diff > PI {
+        diff -= TAU;
+    } else if diff < -PI {
+        diff += TAU;
+    }
+    current + diff.clamp(-max_turn, max_turn)
+}
 /// Give the next step for one singular troop
 /// Maintains best distance between enemies and also between friends
 /// TODO: Add a bit of randomness into their movement
@@ -198,17 +232,24 @@ fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
     let &own_team = world.teams.get(&entity)?;
     let pos = world.positions.get(&entity)?;
     let (x, y) = (pos.x as f64, pos.y as f64);
+    let (vx, vy) = world.velocities.get(&entity).copied().unwrap_or((0.0, 0.0));
+    let current_rotation = world.rotations.get(&entity).copied().unwrap_or(0.0);
 
     let nearest_enem = nearest(world, entity, own_team, x, y, OnMyTeam::No);
     let nearest_ally = nearest(world, entity, own_team, x, y, OnMyTeam::Yes);
 
-    let mut move_x = 0.0;
-    let mut move_y = 0.0;
+    let mut target_move_x = 0.0;
+    let mut target_move_y = 0.0;
     let mut rotation = None;
 
     if let Some((dx, dy, _)) = nearest_enem {
-        // + pi / 2 because sprite originally faces up
-        rotation = Some(dy.atan2(dx) + FRAC_PI_2);
+        let target_facing = dy.atan2(dx) + FRAC_PI_2;
+        // accelerating rotation
+        rotation = Some(turn_towards(
+            current_rotation,
+            target_facing,
+            TROOP_TURN_RATE,
+        ));
     }
 
     // ally that is too close to me
@@ -216,39 +257,42 @@ fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
         nearest_ally.filter(|&(_, _, dist_sq)| dist_sq < TROOP_TEAM_RANGE.powi(2));
 
     if let Some((dx, dy, _)) = crowded_by_ally {
-        // move away from crowding allies first!
-        move_x -= get_speed_for(dx) * TROOP_SPREAD_SPEED_MULTIPLIER;
-        move_y -= get_speed_for(dy) * TROOP_SPREAD_SPEED_MULTIPLIER;
+        // move away from allies first
+        target_move_x = -get_speed_for(dx) * TROOP_SPREAD_SPEED_MULTIPLIER;
+        target_move_y = -get_speed_for(dy) * TROOP_SPREAD_SPEED_MULTIPLIER;
     } else if let Some((dx, dy, dist_sq)) = nearest_enem {
-        // maintain range with enemies afterwards
         let x_dir = get_speed_for(dx);
         let y_dir = get_speed_for(dy);
         if dist_sq > (TROOP_ENEM_RANGE + RANGE_MARGIN).powi(2) {
-            move_x += x_dir;
-            move_y += y_dir;
+            target_move_x = x_dir;
+            target_move_y = y_dir;
         } else if dist_sq < (TROOP_ENEM_RANGE - RANGE_MARGIN).powi(2) {
-            move_x -= x_dir;
-            move_y -= y_dir;
+            target_move_x = -x_dir;
+            target_move_y = -y_dir;
         }
     }
 
-    if move_x != 0.0 || move_y != 0.0 {
-        // random is [0, 1), we want [-TROOP_WANDER, TROOP_WANDER)
-        move_x += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
-        move_y += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
-    }
-    if move_x == 0.0 && move_y == 0.0 && rotation.is_none() {
-        return None;
+    if target_move_x != 0.0 || target_move_y != 0.0 {
+        target_move_x += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
+        target_move_y += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
     }
 
+    // accelerating position
+    let new_vx = accelerate_towards(vx, target_move_x, TROOP_ACCELERATION);
+    let new_vy = accelerate_towards(vy, target_move_y, TROOP_ACCELERATION);
+
+    if new_vx == 0.0 && new_vy == 0.0 && rotation.is_none() {
+        return None;
+    }
     Some(TroopUpdate {
         entity,
         position: Position {
-            // .floor() is faster than .round()
-            x: (x + move_x).floor() as u32,
-            y: (y + move_y).floor() as u32,
+            // `.floor()` is faster than `.round()`
+            x: (x + new_vx).floor() as u32,
+            y: (y + new_vy).floor() as u32,
         },
         rotation,
+        velocity: (new_vx, new_vy),
     })
 }
 
@@ -272,6 +316,7 @@ pub fn update_troops(world: &mut World) {
 
     for update in updates {
         world.positions.insert(update.entity, update.position);
+        world.velocities.insert(update.entity, update.velocity);
         if let Some(rotation) = update.rotation {
             world.rotations.insert(update.entity, rotation);
         }
