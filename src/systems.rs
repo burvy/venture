@@ -177,8 +177,6 @@ pub fn spawn_troop(world: &mut World, pos: Position, team: Team) -> Entity {
     world.positions.insert(
         entity,
         Position {
-            // reminder that saturating sub doesn't sub
-            // past the data type's limits
             x: pos.x - sprite.width as i32 / 2,
             y: pos.y - sprite.height as i32 / 2,
         },
