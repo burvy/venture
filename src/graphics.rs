@@ -135,6 +135,7 @@ impl Sprite {
 
     /// Gets the color of a pixel from the sprite
     fn get_pixel_color(&self, x: u32, y: u32) -> Option<[u8; 4]> {
+        // pixel buffer calculation
         let pix = ((y * self.width + x) << 2) as usize;
         let alpha = self.pixels[pix + 3];
         if alpha == 0 {
