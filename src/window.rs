@@ -29,6 +29,7 @@ pub struct App {
     pub pan_left: bool,
     pub pan_right: bool,
     pub is_mobile: bool,
+    pub mouse_down: bool,
     pub dpad_touch: Option<u64>,
 }
 
@@ -45,6 +46,24 @@ impl App {
         self.pan_down = false;
         self.pan_left = false;
         self.pan_right = false;
+    }
+    /// determines what happens if you drag
+    fn handle_drag(&mut self, x: u32, y: u32) {
+        let Some(game_state) = self.game_state.as_mut() else {
+            return;
+        };
+        let world_x = x as i32 + game_state.camera.x;
+        let world_y = y as i32 + game_state.camera.y;
+        match game_state.mode {
+            systems::Mode::PAINT => {
+                game_state
+                    .world
+                    .obstacles
+                    .paint(world_x, world_y, systems::BRUSH_RADIUS);
+            }
+            systems::Mode::ERASE => {}
+            systems::Mode::DEPLOY => {}
+        }
     }
     /// Determines what happens if you interact with something
     /// at these x and y coordinates.
@@ -242,11 +261,17 @@ impl ApplicationHandler<Graphics> for App {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_pos = (position.x, position.y);
+                if self.mouse_down {
+                    self.handle_drag(position.x as u32, position.y as u32);
+                }
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if state == ElementState::Pressed && button == MouseButton::Left {
-                    let (x, y) = (self.cursor_pos.0 as u32, self.cursor_pos.1 as u32);
-                    self.handle_tap(x, y);
+                if button == MouseButton::Left {
+                    self.mouse_down = state == ElementState::Pressed;
+                    if state == ElementState::Pressed {
+                        let (x, y) = (self.cursor_pos.0 as u32, self.cursor_pos.1 as u32);
+                        self.handle_tap(x, y);
+                    }
                 }
             }
             WindowEvent::Touch(touch) => {
@@ -269,7 +294,11 @@ impl ApplicationHandler<Graphics> for App {
                             self.clear_pan();
                         }
                     }
-                    TouchPhase::Moved => {}
+                    TouchPhase::Moved => {
+                        if self.dpad_touch != Some(touch.id) {
+                            self.handle_drag(x, y);
+                        }
+                    }
                 }
             }
             _ => (),
