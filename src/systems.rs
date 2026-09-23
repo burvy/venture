@@ -385,6 +385,24 @@ fn circle_pixels(x: i32, y: i32, radius: i32) -> impl Iterator<Item = (i32, i32)
     })
 }
 
+/// points spaced closely enough along the line from (x0,y0) to (x1,y1)
+/// that painting circles at each one leaves no gaps
+pub fn lerp_points(x0: i32, y0: i32, x1: i32, y1: i32) -> impl Iterator<Item = (i32, i32)> {
+    let dx = (x1 - x0) as f64;
+    let dy = (y1 - y0) as f64;
+    let distance = (dx * dx + dy * dy).sqrt();
+    let step = BRUSH_RADIUS as f64 / 2.0;
+    let steps = (distance / step).ceil().max(1.0) as i32;
+
+    (0..=steps).map(move |i| {
+        let t = i as f64 / steps as f64;
+        (
+            (x0 as f64 + dx * t).round() as i32,
+            (y0 as f64 + dy * t).round() as i32,
+        )
+    })
+}
+
 impl Obstacles {
     /// adds the pixel for every pixel in the circle
     pub fn paint(&mut self, x: i32, y: i32, radius: i32) {

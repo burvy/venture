@@ -30,6 +30,7 @@ pub struct App {
     pub pan_right: bool,
     pub is_mobile: bool,
     pub mouse_down: bool,
+    pub last_drag_pos: Option<(i32, i32)>,
     pub dpad_touch: Option<u64>,
 }
 
@@ -56,10 +57,15 @@ impl App {
         let world_y = y as i32 + game_state.camera.y;
         match game_state.mode {
             systems::Mode::PAINT => {
-                game_state
-                    .world
-                    .obstacles
-                    .paint(world_x, world_y, systems::BRUSH_RADIUS);
+                // if last drag pos not found then just lerp from the same point to itself
+                let (from_x, from_y) = self.last_drag_pos.unwrap_or((world_x, world_y));
+                for (pixi, pixj) in systems::lerp_points(from_x, from_y, world_x, world_y) {
+                    game_state
+                        .world
+                        .obstacles
+                        .paint(pixi, pixj, systems::BRUSH_RADIUS);
+                }
+                self.last_drag_pos = Some((world_x, world_y));
             }
             systems::Mode::ERASE => {}
             systems::Mode::DEPLOY => {}
@@ -114,6 +120,7 @@ impl App {
                 }
             }
         }
+        self.last_drag_pos = Some((world_x, world_y));
     }
 }
 
@@ -246,16 +253,17 @@ impl ApplicationHandler<Graphics> for App {
                     }
                     _ => {}
                 }
-                if event.state == ElementState::Pressed && !event.repeat {
-                    if let Some(game_state) = self.game_state.as_mut() {
-                        match event.physical_key {
-                            PhysicalKey::Code(KeyCode::KeyM) => game_state.change_teams(),
-                            PhysicalKey::Code(KeyCode::KeyE) => game_state.toggle_erase(),
-                            PhysicalKey::Code(KeyCode::KeyO) => game_state.toggle_paint(),
-                            PhysicalKey::Code(KeyCode::KeyP) => game_state.toggle_pause(),
-                            PhysicalKey::Code(KeyCode::Space) => game_state.toggle_pause(),
-                            _ => {}
-                        }
+                if let Some(game_state) = self.game_state.as_mut()
+                    && event.state == ElementState::Pressed
+                    && !event.repeat
+                {
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::KeyM) => game_state.change_teams(),
+                        PhysicalKey::Code(KeyCode::KeyE) => game_state.toggle_erase(),
+                        PhysicalKey::Code(KeyCode::KeyO) => game_state.toggle_paint(),
+                        PhysicalKey::Code(KeyCode::KeyP) => game_state.toggle_pause(),
+                        PhysicalKey::Code(KeyCode::Space) => game_state.toggle_pause(),
+                        _ => {}
                     }
                 }
             }
@@ -271,6 +279,10 @@ impl ApplicationHandler<Graphics> for App {
                     if state == ElementState::Pressed {
                         let (x, y) = (self.cursor_pos.0 as u32, self.cursor_pos.1 as u32);
                         self.handle_tap(x, y);
+                    } else {
+                        // clear the last drag pos so a new stroke doesn't
+                        // have a line connecting to the last one
+                        self.last_drag_pos = None;
                     }
                 }
             }
@@ -293,6 +305,8 @@ impl ApplicationHandler<Graphics> for App {
                             self.dpad_touch = None;
                             self.clear_pan();
                         }
+
+                        self.last_drag_pos = None;
                     }
                     TouchPhase::Moved => {
                         if self.dpad_touch != Some(touch.id) {
