@@ -84,7 +84,10 @@ impl App {
                 }
             }
             systems::Mode::PAINT => {
-                return;
+                game_state
+                    .world
+                    .obstacles
+                    .paint(world_x, world_y, systems::BRUSH_RADIUS);
             }
             systems::Mode::ERASE => {
                 if let Some(entity) = entity {

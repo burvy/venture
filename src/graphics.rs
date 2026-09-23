@@ -9,6 +9,8 @@ use std::{
     sync::OnceLock,
 };
 
+const OBSTACLE_COLOR: [u8; 4] = [200, 200, 20, 255];
+
 static SPRITES: OnceLock<Sprites> = OnceLock::new();
 
 /// struct to hold the predefined sprites, not
@@ -173,6 +175,15 @@ pub fn draw_fn(app: &mut App) {
 
     // LOADING SPRITES
     let sprites = sprites();
+    // DRAWING OBSTACLES (below troops)
+    for (obstacle_x, obstacle_y) in game_state.world.obstacles.painted_pixels() {
+        let dx = obstacle_x - game_state.camera.x;
+        let dy = obstacle_y - game_state.camera.y;
+        if dx < 0 || dy < 0 {
+            continue;
+        }
+        graphics.draw_pixel(dx as u32, dy as u32, OBSTACLE_COLOR);
+    }
 
     // DRAWING TROOP SPRITES (below other sprites)
     for (&entity, pos) in game_state.world.positions.iter() {

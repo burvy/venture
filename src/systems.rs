@@ -28,6 +28,9 @@ const TROOP_WANDER: f64 = 0.5;
 /// pixels the camera moves while movement is held
 const CAMERA_SPEED: i32 = 8;
 
+/// radius of the circle for painting/erasing
+pub const BRUSH_RADIUS: i32 = 32;
+
 static BG_MUSIC: [&[u8]; 4] = [
     include_bytes!("../assets/sounds/music/song1.ogg"),
     include_bytes!("../assets/sounds/music/song2.ogg"),
@@ -52,6 +55,12 @@ impl BGMusicPlayer {
             self.current = (self.current + 1) % BG_MUSIC.len();
             self.sounds.play(BG_MUSIC[self.current]);
         }
+    }
+}
+
+impl Default for BGMusicPlayer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -361,30 +370,46 @@ pub fn update_troops(world: &mut World) {
 
 #[derive(Default)]
 pub struct Obstacles {
-    pixels: HashSet<(u32, u32)>,
+    pixels: HashSet<(i32, i32)>,
 }
-// TODO: hiiii welcome back anyway:
-// add these obstacles methods
-// get something in window.rs's PAINT arm where you do tapping things
-// do drag tracking
+
+/// returns every point in the circle with radius `radius` around `x`, `y`
+fn circle_pixels(x: i32, y: i32, radius: i32) -> impl Iterator<Item = (i32, i32)> {
+    // arbritrary square with sides radius * radius
+    (-radius..=radius).flat_map(move |dx| {
+        (-radius..=radius)
+            // filter out non-circle pixels in our square
+            .filter(move |&dy| dx.pow(2) + dy.pow(2) <= radius.pow(2))
+            // moves the circle to our coordinates x and y
+            .map(move |dy| (x + dx, y + dy))
+    })
+}
+
 impl Obstacles {
-    // pub fn paint(&mut self, x: u32, y: u32, radius: u32);
-    // pub fn erase(&mut self, x: u32, y: u32, radius: u32);
-    // pub fn is_blocked(&self, x: u32, y: u32) -> bool;
-    // pub fn painted_pixels(&self) -> impl Iterator<Item = (u32, u32)> + '_;
+    /// adds the pixel for every pixel in the circle
+    pub fn paint(&mut self, x: i32, y: i32, radius: i32) {
+        for p in circle_pixels(x, y, radius) {
+            self.pixels.insert(p);
+        }
+    }
+
+    /// removes the pixel for every pixel in the circle
+    pub fn erase(&mut self, x: i32, y: i32, radius: i32) {
+        for p in circle_pixels(x, y, radius) {
+            self.pixels.remove(&p);
+        }
+    }
+
+    /// the pixel at x and y is within our set of pixels
+    pub fn is_blocked(&self, x: i32, y: i32) -> bool {
+        self.pixels.contains(&(x, y))
+    }
+
+    /// returns our set of pixels
+    pub fn painted_pixels(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
+        self.pixels.iter().copied()
+    }
 }
-// pub fn erase_at(world: &mut World, x: u32, y: u32, radius: u32) {
-//     world.obstacles.erase(x, y, radius);
-//     let doomed: Vec<Entity> = world
-//         .positions
-//         .iter()
-//         .filter(|&(&e, pos)| troop_in_brush(pos, troop_sprite_for(world, e), x, y, radius))
-//         .map(|(&e, _)| e)
-//         .collect();
-//     for entity in doomed {
-//         world.despawn(entity);
-//     }
-// }
 
 pub fn pan_camera(camera: &mut Position, up: bool, down: bool, left: bool, right: bool) {
     if up {
