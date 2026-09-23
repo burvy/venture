@@ -60,15 +60,28 @@ impl App {
                 // if last drag pos not found then just lerp from the same point to itself
                 let (from_x, from_y) = self.last_drag_pos.unwrap_or((world_x, world_y));
                 for (pixi, pixj) in systems::lerp_points(from_x, from_y, world_x, world_y) {
-                    game_state
-                        .world
-                        .obstacles
-                        .paint(pixi, pixj, systems::BRUSH_RADIUS);
+                    systems::paint_at(&mut game_state.world, pixi, pixj, systems::BRUSH_RADIUS);
                 }
                 self.last_drag_pos = Some((world_x, world_y));
             }
-            systems::Mode::ERASE => {}
-            systems::Mode::DEPLOY => {}
+            systems::Mode::ERASE => {
+                let (from_x, from_y) = self.last_drag_pos.unwrap_or((world_x, world_y));
+                for (pixi, pixj) in systems::lerp_points(from_x, from_y, world_x, world_y) {
+                    systems::erase_at(&mut game_state.world, pixi, pixj, systems::BRUSH_RADIUS);
+                }
+                self.last_drag_pos = Some((world_x, world_y));
+            }
+            systems::Mode::DEPLOY => {
+                let entity: Option<systems::Entity> =
+                    graphics::troop_at(&game_state.world, world_x, world_y);
+                let pos = systems::Position {
+                    x: world_x,
+                    y: world_y,
+                };
+                if entity.is_none() {
+                    systems::spawn_troop(&mut game_state.world, pos, game_state.team_mode);
+                }
+            }
         }
     }
     /// Determines what happens if you interact with something
@@ -115,9 +128,12 @@ impl App {
                     .paint(world_x, world_y, systems::BRUSH_RADIUS);
             }
             systems::Mode::ERASE => {
-                if let Some(entity) = entity {
-                    game_state.world.despawn(entity);
-                }
+                systems::erase_at(
+                    &mut game_state.world,
+                    world_x,
+                    world_y,
+                    systems::BRUSH_RADIUS,
+                );
             }
         }
         self.last_drag_pos = Some((world_x, world_y));

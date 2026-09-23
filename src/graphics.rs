@@ -59,7 +59,7 @@ pub fn sprites() -> &'static Sprites {
     SPRITES.get_or_init(Sprites::load)
 }
 
-fn troop_sprite(world: &systems::World, entity: systems::Entity) -> Option<&'static Sprite> {
+pub fn troop_sprite(world: &systems::World, entity: systems::Entity) -> Option<&'static Sprite> {
     match world.teams.get(&entity)? {
         systems::Team::RED => Some(&sprites().red_troop),
         systems::Team::BLUE => Some(&sprites().blue_troop),

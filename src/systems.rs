@@ -385,11 +385,10 @@ fn circle_pixels(x: i32, y: i32, radius: i32) -> impl Iterator<Item = (i32, i32)
     })
 }
 
-/// points spaced closely enough along the line from (x0,y0) to (x1,y1)
-/// that painting circles at each one leaves no gaps
-pub fn lerp_points(x0: i32, y0: i32, x1: i32, y1: i32) -> impl Iterator<Item = (i32, i32)> {
-    let dx = (x1 - x0) as f64;
-    let dy = (y1 - y0) as f64;
+/// draws a line from (x1, y1) to (x2, y2) for the circles so it looks smoother
+pub fn lerp_points(x1: i32, y1: i32, x2: i32, y2: i32) -> impl Iterator<Item = (i32, i32)> {
+    let dx = (x2 - x1) as f64;
+    let dy = (y2 - y1) as f64;
     let distance = (dx * dx + dy * dy).sqrt();
     let step = BRUSH_RADIUS as f64 / 2.0;
     let steps = (distance / step).ceil().max(1.0) as i32;
@@ -397,8 +396,8 @@ pub fn lerp_points(x0: i32, y0: i32, x1: i32, y1: i32) -> impl Iterator<Item = (
     (0..=steps).map(move |i| {
         let t = i as f64 / steps as f64;
         (
-            (x0 as f64 + dx * t).round() as i32,
-            (y0 as f64 + dy * t).round() as i32,
+            (x1 as f64 + dx * t).round() as i32,
+            (y1 as f64 + dy * t).round() as i32,
         )
     })
 }
@@ -427,6 +426,44 @@ impl Obstacles {
     pub fn painted_pixels(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
         self.pixels.iter().copied()
     }
+}
+
+fn troop_in_brush(
+    troop_pos: &Position,
+    sprite: &graphics::Sprite,
+    brush_x: i32,
+    brush_y: i32,
+    brush_radius: i32,
+) -> bool {
+    let troop_radius = sprite.width.max(sprite.height) as i32 / 2;
+    let center_x = troop_pos.x + sprite.width as i32 / 2;
+    let center_y = troop_pos.y + sprite.height as i32 / 2;
+    let dx = center_x - brush_x;
+    let dy = center_y - brush_y;
+    let max_dist = brush_radius + troop_radius;
+    dx * dx + dy * dy <= max_dist * max_dist
+}
+
+pub fn erase_at(world: &mut World, x: i32, y: i32, radius: i32) {
+    world.obstacles.erase(x, y, radius);
+    let doomed: Vec<Entity> = world
+        .positions
+        .iter()
+        // formats all valid troops
+        .filter_map(|(&e, pos)| graphics::troop_sprite(world, e).map(|sprite| (e, pos, sprite)))
+        // filters troops that are doomed
+        .filter(|(_, pos, sprite)| troop_in_brush(pos, sprite, x, y, radius))
+        // gets their ids
+        .map(|(e, _, _)| e)
+        .collect();
+    // and despawns them based on id
+    for entity in doomed {
+        world.despawn(entity);
+    }
+}
+
+pub fn paint_at(world: &mut World, x: i32, y: i32, radius: i32) {
+    world.obstacles.paint(x, y, radius);
 }
 
 pub fn pan_camera(camera: &mut Position, up: bool, down: bool, left: bool, right: bool) {
