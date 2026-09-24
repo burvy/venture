@@ -15,8 +15,10 @@ const TROOP_SPREAD_SPEED_MULTIPLIER: f64 = 3.0;
 const TROOP_ACCELERATION: f64 = 0.3;
 /// how many radians a troop can turn per tick
 const TROOP_TURN_RATE: f64 = 0.1;
-/// pixels to maintain from teammates
+/// pixels to maintain from anything
 const TROOP_CROWDING_RANGE: f64 = 64.0;
+/// how many directions to check around for walls
+const WALL_SAMPLES: i32 = 8;
 /// pixels to maintain from enemies
 const TROOP_ENEM_RANGE: f64 = 512.0;
 /// pixels of margin around a range so troops don't jitter
@@ -323,6 +325,18 @@ fn avoidance_force(world: &World, entity: Entity, mot_x: f64, mot_y: f64) -> (f6
     // infers angle from motion
     let angle = mot_y.atan2(mot_x);
 
+    // nothing in front
+    if !ray_blocked(
+        world,
+        center_x,
+        center_y,
+        angle,
+        WHISKER_LENGTH,
+        WHISKER_STEPS,
+    ) {
+        return (0.0, 0.0);
+    }
+
     let left_blocked = ray_blocked(
         world,
         center_x,
@@ -345,14 +359,39 @@ fn avoidance_force(world: &World, entity: Entity, mot_x: f64, mot_y: f64) -> (f6
 
     // decision table
     let (steer_x, steer_y) = match (left_blocked, right_blocked) {
-        (false, false) => return (0.0, 0.0), // clear
-        (false, true) => (-dir_y, dir_x),    // steer left
-        (true, false) => (dir_y, -dir_x),    // steer right
-        (true, true) => (dir_y, -dir_x),     // steer right
+        (false, true) => (-dir_y, dir_x), // steer left
+        (true, false) => (dir_y, -dir_x), // steer right
+        _ => (dir_y, -dir_x),             // steer right
     };
 
     // suggested action
     (steer_x * TROOP_SPEED, steer_y * TROOP_SPEED)
+}
+
+/// push away from nearby walls
+fn wall_push_force(world: &World, entity: Entity) -> (f64, f64) {
+    let Some((center_x, center_y)) = graphics::center_of_troop(world, entity) else {
+        return (0.0, 0.0);
+    };
+    let (center_x, center_y) = (center_x as f64, center_y as f64);
+
+    let mut push_x = 0.0;
+    let mut push_y = 0.0;
+
+    for i in 0..WALL_SAMPLES {
+        let angle = TAU * (i as f64 / WALL_SAMPLES as f64);
+        let sample_x = (center_x + angle.cos() * TROOP_CROWDING_RANGE).round() as i32;
+        let sample_y = (center_y + angle.sin() * TROOP_CROWDING_RANGE).round() as i32;
+        if world.obstacles.is_blocked(sample_x, sample_y) {
+            push_x -= angle.cos();
+            push_y -= angle.sin();
+        }
+    }
+
+    (
+        push_x * TROOP_SPEED * TROOP_SPREAD_SPEED_MULTIPLIER,
+        push_y * TROOP_SPEED * TROOP_SPREAD_SPEED_MULTIPLIER,
+    )
 }
 
 /// Push myself away from nearest troops
@@ -421,10 +460,11 @@ fn troop_update(world: &World, troop: Entity) -> Option<TroopUpdate> {
     // forces
     let (sep_x, sep_y) = separation_force(world, troop, own_team, x, y);
     let (seek_x, seek_y, rotation) = pathfind_force(world, troop, own_team, x, y, my_rot);
+    let (wall_x, wall_y) = wall_push_force(world, troop);
 
     // sums up primitive motivating force components into a desired direction
-    let primitive_x = [sep_x, seek_x].iter().sum();
-    let primitive_y = [sep_y, seek_y].iter().sum();
+    let primitive_x = [sep_x, seek_x, wall_x].iter().sum();
+    let primitive_y = [sep_y, seek_y, wall_y].iter().sum();
 
     // advanced forces
     let (avoid_x, avoid_y) = avoidance_force(world, troop, primitive_x, primitive_y);
