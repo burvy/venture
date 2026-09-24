@@ -16,7 +16,7 @@ const TROOP_ACCELERATION: f64 = 0.3;
 /// how many radians a troop can turn per tick
 const TROOP_TURN_RATE: f64 = 0.1;
 /// pixels to maintain from teammates
-const TROOP_TEAM_RANGE: f64 = 64.0;
+const TROOP_CROWDING_RANGE: f64 = 64.0;
 /// pixels to maintain from enemies
 const TROOP_ENEM_RANGE: f64 = 512.0;
 /// pixels of margin around a range so troops don't jitter
@@ -218,6 +218,7 @@ struct TroopUpdate {
 enum OnMyTeam {
     Yes,
     No,
+    DoesNotMatter,
 }
 /// Returns the position and distance of the nearest entity
 /// its Option<(dx, dy, distance squared)>
@@ -238,7 +239,8 @@ fn nearest(
         .iter()
         .filter(|&(&other, _)| {
             other != entity
-                && (world.teams.get(&other) == Some(&own_team)) == (same_team == OnMyTeam::Yes)
+                && ((world.teams.get(&other) == Some(&own_team)) == (same_team == OnMyTeam::Yes))
+                || same_team == OnMyTeam::DoesNotMatter
         })
         .map(|(_, other_pos)| {
             let dx = other_pos.x as f64 - x;
@@ -269,6 +271,48 @@ fn turn_towards(current: f64, target: f64, max_turn: f64) -> f64 {
     }
     current + diff.clamp(-max_turn, max_turn)
 }
+
+fn troop_update_logic(world: &World, entity: Entity) -> Option<TroopUpdate> {
+    let entity: Entity = entity;
+    let pos_x: i32 = 0;
+    let pos_y: i32 = 0;
+    let rot: Option<f64> = Some(0.0);
+    let vel_x: f64 = 0.0;
+    let vel_y: f64 = 0.0;
+
+    Some(TroopUpdate {
+        entity,
+        position: Position {
+            // `.floor()` is faster than `.round()`
+            x: (pos_x + vel_x as i32),
+            y: (pos_y + vel_y as i32),
+        },
+        rotation: rot,
+        velocity: (vel_x, vel_y),
+    })
+}
+
+/// Push myself away from nearest troops
+/// TODO: finish function
+fn troop_pushing(world: &World, entity: Entity) -> Option<TroopUpdate> {
+    let &own_team = world.teams.get(&entity)?;
+    let my_pos = world.positions.get(&entity)?;
+
+    let other = nearest(
+        world,
+        entity,
+        own_team,
+        my_pos.x as f64,
+        my_pos.y as f64,
+        OnMyTeam::DoesNotMatter,
+    );
+
+
+
+    
+    todo!()
+}
+
 /// Give the next step for one singular troop
 /// Maintains best distance between enemies and also between friends
 /// TODO: Add a bit of randomness into their movement
@@ -298,7 +342,7 @@ fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
 
     // ally that is too close to me
     let crowded_by_ally =
-        nearest_ally.filter(|&(_, _, dist_sq)| dist_sq < TROOP_TEAM_RANGE.powi(2));
+        nearest_ally.filter(|&(_, _, dist_sq)| dist_sq < TROOP_CROWDING_RANGE.powi(2));
 
     if let Some((dx, dy, _)) = crowded_by_ally {
         // move away from allies first
