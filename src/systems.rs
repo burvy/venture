@@ -237,16 +237,25 @@ fn nearest(
     world
         .positions
         .iter()
+        // filters for ally, not ally, or doesnt matter
         .filter(|&(&other, _)| {
-            other != entity
-                && ((world.teams.get(&other) == Some(&own_team)) == (same_team == OnMyTeam::Yes))
-                || same_team == OnMyTeam::DoesNotMatter
+            if other == entity {
+                return false;
+            }
+            let is_ally = world.teams.get(&other) == Some(&own_team);
+            match same_team {
+                OnMyTeam::Yes => is_ally,
+                OnMyTeam::No => !is_ally,
+                OnMyTeam::DoesNotMatter => true,
+            }
         })
+        // extracts positions only
         .map(|(_, other_pos)| {
             let dx = other_pos.x as f64 - x;
             let dy = other_pos.y as f64 - y;
             (dx, dy, dx * dx + dy * dy)
         })
+        // sorts for the smallest
         // `min_by` works like current champion vs next challenger
         // the smallest one wins. it's also secretly a `fold`
         .min_by(|a, b| a.2.partial_cmp(&b.2).expect("NaN value encountered"))
@@ -272,116 +281,94 @@ fn turn_towards(current: f64, target: f64, max_turn: f64) -> f64 {
     current + diff.clamp(-max_turn, max_turn)
 }
 
-fn troop_update_logic(world: &World, entity: Entity) -> Option<TroopUpdate> {
-    let entity: Entity = entity;
-    let pos_x: i32 = 0;
-    let pos_y: i32 = 0;
-    let rot: Option<f64> = Some(0.0);
-    let vel_x: f64 = 0.0;
-    let vel_y: f64 = 0.0;
+/// Push myself away from nearest troops
+fn separation_force(world: &World, entity: Entity, own_team: Team, x: f64, y: f64) -> (f64, f64) {
+    // the one nearest other entity
+    let other = nearest(world, entity, own_team, x, y, OnMyTeam::DoesNotMatter);
+    // if that entity is in range
+    let in_range = other.filter(|&(_, _, dist_sq)| dist_sq < TROOP_CROWDING_RANGE.powi(2));
 
-    Some(TroopUpdate {
-        entity,
-        position: Position {
-            // `.floor()` is faster than `.round()`
-            x: (pos_x + vel_x as i32),
-            y: (pos_y + vel_y as i32),
-        },
-        rotation: rot,
-        velocity: (vel_x, vel_y),
-    })
+    match in_range {
+        Some((dx, dy, _)) => (
+            -get_speed_for(dx) * TROOP_SPREAD_SPEED_MULTIPLIER,
+            -get_speed_for(dy) * TROOP_SPREAD_SPEED_MULTIPLIER,
+        ),
+        None => (0.0, 0.0),
+    }
 }
 
-/// Push myself away from nearest troops
-/// TODO: finish function
-fn troop_pushing(world: &World, entity: Entity) -> Option<TroopUpdate> {
-    let &own_team = world.teams.get(&entity)?;
-    let my_pos = world.positions.get(&entity)?;
+/// Direction to move and rotate into to get closer to enemies
+fn pathfind_force(
+    world: &World,
+    entity: Entity,
+    own_team: Team,
+    x: f64,
+    y: f64,
+    current_rotation: f64,
+) -> (f64, f64, Option<f64>) {
+    let Some((dx, dy, dist_sq)) = nearest(world, entity, own_team, x, y, OnMyTeam::No) else {
+        return (0.0, 0.0, None);
+    };
 
-    let other = nearest(
-        world,
-        entity,
-        own_team,
-        my_pos.x as f64,
-        my_pos.y as f64,
-        OnMyTeam::DoesNotMatter,
-    );
+    let target_facing = dy.atan2(dx) + FRAC_PI_2;
+    let rotation = Some(turn_towards(
+        current_rotation,
+        target_facing,
+        TROOP_TURN_RATE,
+    ));
 
+    let x_dir = get_speed_for(dx);
+    let y_dir = get_speed_for(dy);
+    let (move_x, move_y) = if dist_sq > (TROOP_ENEM_RANGE + RANGE_MARGIN).powi(2) {
+        (x_dir, y_dir)
+    } else if dist_sq < (TROOP_ENEM_RANGE - RANGE_MARGIN).powi(2) {
+        (-x_dir, -y_dir)
+    } else {
+        (0.0, 0.0)
+    };
 
-
-    
-    todo!()
+    (move_x, move_y, rotation)
 }
 
 /// Give the next step for one singular troop
 /// Maintains best distance between enemies and also between friends
-/// TODO: Add a bit of randomness into their movement
 fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
+    // own information
     let &own_team = world.teams.get(&entity)?;
     let pos = world.positions.get(&entity)?;
     let (x, y) = (pos.x as f64, pos.y as f64);
-    let (vx, vy) = world.velocities.get(&entity).copied().unwrap_or((0.0, 0.0));
-    let current_rotation = world.rotations.get(&entity).copied().unwrap_or(0.0);
+    let (vel_x, vel_y) = world.velocities.get(&entity).copied().unwrap_or((0.0, 0.0));
+    let my_rot = world.rotations.get(&entity).copied().unwrap_or(0.0);
 
-    let nearest_enem = nearest(world, entity, own_team, x, y, OnMyTeam::No);
-    let nearest_ally = nearest(world, entity, own_team, x, y, OnMyTeam::Yes);
+    // forces
+    let (sep_x, sep_y) = separation_force(world, entity, own_team, x, y);
+    let (seek_x, seek_y, rotation) = pathfind_force(world, entity, own_team, x, y, my_rot);
 
-    let mut target_move_x = 0.0;
-    let mut target_move_y = 0.0;
-    let mut rotation = None;
+    // sums up motivating forces' components for a desire vector
+    let mut desire_x = sep_x + seek_x;
+    let mut desire_y = sep_y + seek_y;
 
-    if let Some((dx, dy, _)) = nearest_enem {
-        let target_facing = dy.atan2(dx) + FRAC_PI_2;
-        // accelerating rotation
-        rotation = Some(turn_towards(
-            current_rotation,
-            target_facing,
-            TROOP_TURN_RATE,
-        ));
-    }
+    // adds randomness into desire
+    desire_x += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
+    desire_y += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
 
-    // ally that is too close to me
-    let crowded_by_ally =
-        nearest_ally.filter(|&(_, _, dist_sq)| dist_sq < TROOP_CROWDING_RANGE.powi(2));
+    // accelerate troop towards net desire vector
+    let new_vel_x = accelerate_towards(vel_x, desire_x, TROOP_ACCELERATION);
+    let new_vel_y = accelerate_towards(vel_y, desire_y, TROOP_ACCELERATION);
 
-    if let Some((dx, dy, _)) = crowded_by_ally {
-        // move away from allies first
-        target_move_x = -get_speed_for(dx) * TROOP_SPREAD_SPEED_MULTIPLIER;
-        target_move_y = -get_speed_for(dy) * TROOP_SPREAD_SPEED_MULTIPLIER;
-    } else if let Some((dx, dy, dist_sq)) = nearest_enem {
-        // moves towards enemies
-        let x_dir = get_speed_for(dx);
-        let y_dir = get_speed_for(dy);
-        if dist_sq > (TROOP_ENEM_RANGE + RANGE_MARGIN).powi(2) {
-            target_move_x = x_dir;
-            target_move_y = y_dir;
-        } else if dist_sq < (TROOP_ENEM_RANGE - RANGE_MARGIN).powi(2) {
-            target_move_x = -x_dir;
-            target_move_y = -y_dir;
-        }
-    }
-
-    if target_move_x != 0.0 || target_move_y != 0.0 {
-        target_move_x += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
-        target_move_y += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
-    }
-
-    // accelerating position
-    let new_vx = accelerate_towards(vx, target_move_x, TROOP_ACCELERATION);
-    let new_vy = accelerate_towards(vy, target_move_y, TROOP_ACCELERATION);
-
-    if new_vx == 0.0 && new_vy == 0.0 && rotation.is_none() {
+    if new_vel_x == 0.0 && new_vel_y == 0.0 && rotation.is_none() {
         return None;
     }
+
     Some(TroopUpdate {
         entity,
         position: Position {
             // `.floor()` is faster than `.round()`
-            x: (x + new_vx).floor() as i32,
-            y: (y + new_vy).floor() as i32,
+            x: (x + new_vel_x).floor() as i32,
+            y: (y + new_vel_y).floor() as i32,
         },
         rotation,
-        velocity: (new_vx, new_vy),
+        velocity: (new_vel_x, new_vel_y),
     })
 }
 

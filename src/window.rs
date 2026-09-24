@@ -125,7 +125,7 @@ impl App {
                 game_state
                     .world
                     .obstacles
-                    .paint(world_x, world_y, systems::BRUSH_RADIUS);
+                    .paint_at(world_x, world_y, systems::BRUSH_RADIUS);
             }
             systems::Mode::ERASE => {
                 systems::erase_at(
