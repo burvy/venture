@@ -2,7 +2,7 @@ use crate::graphics;
 use crate::sounds::Sounds;
 use std::{
     collections::{HashMap, HashSet},
-    f64::consts::{FRAC_PI_2, PI, TAU},
+    f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU},
 };
 
 pub type Entity = u32;
@@ -30,6 +30,13 @@ const CAMERA_SPEED: i32 = 8;
 
 /// radius of the circle for painting/erasing
 pub const BRUSH_RADIUS: i32 = 32;
+
+/// pixels to look ahead to avoid things
+const WHISKER_LENGTH: f64 = 256.0;
+/// two side pixels
+const WHISKER_ANGLE: f64 = FRAC_PI_6;
+/// how many steps to take within length
+const WHISKER_STEPS: f64 = 64.0;
 
 static BG_MUSIC: [&[u8]; 4] = [
     include_bytes!("../assets/sounds/music/song1.ogg"),
@@ -281,16 +288,71 @@ fn turn_towards(current: f64, target: f64, max_turn: f64) -> f64 {
     current + diff.clamp(-max_turn, max_turn)
 }
 
-fn troop_blocked(world: &World, entity: Entity, x: i32, y: i32) -> bool {
-    // checks if the sprite exists
-    let Some(sprite) = graphics::troop_sprite(world, entity) else {
-        return false;
-    };
-    // center at center of troop sprite
-    let center_x = x + sprite.width as i32 / 2;
-    let center_y = y + sprite.height as i32 / 2;
+/// checks if a point is blocked by world obstacles
+fn pos_blocked(world: &World, x: i32, y: i32) -> bool {
     // specific function to check if a point is blocked
-    world.obstacles.is_blocked(center_x, center_y)
+    world.obstacles.is_blocked(x, y)
+}
+
+/// checks if a ray is blocked by world obstacles
+fn ray_blocked(world: &World, x: f64, y: f64, angle: f64, length: f64, steps: f64) -> bool {
+    let dir_x = angle.cos();
+    let dir_y = angle.sin();
+    let step_size = length / steps;
+    (1..=steps.floor() as i32).any(|i| {
+        let dist = step_size * i as f64;
+        let pix_i = (x + dir_x * dist).round() as i32;
+        let pix_j = (y + dir_y * dist).round() as i32;
+        world.obstacles.is_blocked(pix_i, pix_j)
+    })
+}
+
+fn avoidance_force(world: &World, entity: Entity, mot_x: f64, mot_y: f64) -> (f64, f64) {
+    // not moving
+    if mot_x == 0.0 && mot_y == 0.0 {
+        return (0.0, 0.0);
+    }
+
+    let Some((center_x, center_y)) = graphics::center_of_troop(world, entity) else {
+        // cant find the center
+        return (0.0, 0.0);
+    };
+
+    let (center_x, center_y) = (center_x as f64, center_y as f64);
+
+    // infers angle from motion
+    let angle = mot_y.atan2(mot_x);
+
+    let left_blocked = ray_blocked(
+        world,
+        center_x,
+        center_y,
+        angle - WHISKER_ANGLE,
+        WHISKER_LENGTH,
+        WHISKER_STEPS,
+    );
+    let right_blocked = ray_blocked(
+        world,
+        center_x,
+        center_y,
+        angle + WHISKER_ANGLE,
+        WHISKER_LENGTH,
+        WHISKER_STEPS,
+    );
+
+    // deconstructs components from angle
+    let (dir_x, dir_y) = (angle.cos(), angle.sin());
+
+    // decision table
+    let (steer_x, steer_y) = match (left_blocked, right_blocked) {
+        (false, false) => return (0.0, 0.0), // clear
+        (false, true) => (-dir_y, dir_x),    // steer left
+        (true, false) => (dir_y, -dir_x),    // steer right
+        (true, true) => (dir_y, -dir_x),     // steer right
+    };
+
+    // suggested action
+    (steer_x * TROOP_SPEED, steer_y * TROOP_SPEED)
 }
 
 /// Push myself away from nearest troops
@@ -342,40 +404,60 @@ fn pathfind_force(
     (move_x, move_y, rotation)
 }
 
+fn randomness(randomness: f64) -> f64 {
+    rand::random::<f64>() * (randomness * 2.0) - randomness
+}
+
 /// Give the next step for one singular troop
 /// Maintains best distance between enemies and also between friends
-fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
+fn troop_update(world: &World, troop: Entity) -> Option<TroopUpdate> {
     // own information
-    let &own_team = world.teams.get(&entity)?;
-    let pos = world.positions.get(&entity)?;
+    let &own_team = world.teams.get(&troop)?;
+    let pos = world.positions.get(&troop)?;
     let (x, y) = (pos.x as f64, pos.y as f64);
-    let (vel_x, vel_y) = world.velocities.get(&entity).copied().unwrap_or((0.0, 0.0));
-    let my_rot = world.rotations.get(&entity).copied().unwrap_or(0.0);
+    let (vel_x, vel_y) = world.velocities.get(&troop).copied().unwrap_or((0.0, 0.0));
+    let my_rot = world.rotations.get(&troop).copied().unwrap_or(0.0);
 
     // forces
-    let (sep_x, sep_y) = separation_force(world, entity, own_team, x, y);
-    let (seek_x, seek_y, rotation) = pathfind_force(world, entity, own_team, x, y, my_rot);
+    let (sep_x, sep_y) = separation_force(world, troop, own_team, x, y);
+    let (seek_x, seek_y, rotation) = pathfind_force(world, troop, own_team, x, y, my_rot);
 
-    // sums up motivating forces' components for a desire vector
-    let mut desire_x = sep_x + seek_x;
-    let mut desire_y = sep_y + seek_y;
+    // sums up primitive motivating force components into a desired direction
+    let primitive_x = [sep_x, seek_x].iter().sum();
+    let primitive_y = [sep_y, seek_y].iter().sum();
 
-    // adds randomness into desire
-    desire_x += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
-    desire_y += rand::random::<f64>() * (TROOP_WANDER * 2.0) - TROOP_WANDER;
+    // advanced forces
+    let (avoid_x, avoid_y) = avoidance_force(world, troop, primitive_x, primitive_y);
+
+    // sums up advanced motivating force components into a desired direction
+    let desire_x = [primitive_x, avoid_x, randomness(TROOP_WANDER)]
+        .iter()
+        .sum();
+    let desire_y = [primitive_y, avoid_y, randomness(TROOP_WANDER)]
+        .iter()
+        .sum();
 
     // accelerate troop towards net desire vector
     let new_vel_x = accelerate_towards(vel_x, desire_x, TROOP_ACCELERATION);
     let new_vel_y = accelerate_towards(vel_y, desire_y, TROOP_ACCELERATION);
 
     // precalculates the new x and y position
-    let new_x = (x + new_vel_x).floor() as i32;
-    let new_y = (y + new_vel_y).floor() as i32;
+    // using `.round()` fixes random wobble getting too big of an effect
+    let new_x = (x + new_vel_x).round() as i32;
+    let new_y = (y + new_vel_y).round() as i32;
 
-    if new_vel_x == 0.0 && new_vel_y == 0.0 || troop_blocked(world, entity, new_x, new_y) {
+    let sprite = graphics::troop_sprite(world, troop)?;
+
+    if new_vel_x == 0.0 && new_vel_y == 0.0
+        || pos_blocked(
+            world,
+            new_x + sprite.width as i32 / 2,
+            new_y + sprite.height as i32 / 2,
+        )
+    {
         // don't update pos and vel with bad conditions
         Some(TroopUpdate {
-            entity,
+            entity: troop,
             position: Position {
                 x: x as i32,
                 y: y as i32,
@@ -386,7 +468,7 @@ fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
     } else {
         // update all
         Some(TroopUpdate {
-            entity,
+            entity: troop,
             position: Position { x: new_x, y: new_y },
             rotation,
             velocity: (new_vel_x, new_vel_y),

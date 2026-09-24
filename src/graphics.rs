@@ -65,6 +65,15 @@ pub fn troop_sprite(world: &systems::World, entity: systems::Entity) -> Option<&
         systems::Team::BLUE => Some(&sprites().blue_troop),
     }
 }
+
+pub fn center_of_troop(world: &systems::World, entity: systems::Entity) -> Option<(i32, i32)> {
+    let sprite = world.positions.get(&entity)?;
+    let texture = troop_sprite(world, entity)?;
+    Some((
+        sprite.x + texture.width as i32 / 2,
+        sprite.y + texture.height as i32 / 2,
+    ))
+}
 impl Graphics {
     fn draw_pixel(&mut self, x: u32, y: u32, color: [u8; 4]) {
         let size = self.pixels.texture().size();
