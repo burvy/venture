@@ -281,6 +281,18 @@ fn turn_towards(current: f64, target: f64, max_turn: f64) -> f64 {
     current + diff.clamp(-max_turn, max_turn)
 }
 
+fn troop_blocked(world: &World, entity: Entity, x: i32, y: i32) -> bool {
+    // checks if the sprite exists
+    let Some(sprite) = graphics::troop_sprite(world, entity) else {
+        return false;
+    };
+    // center at center of troop sprite
+    let center_x = x + sprite.width as i32 / 2;
+    let center_y = y + sprite.height as i32 / 2;
+    // specific function to check if a point is blocked
+    world.obstacles.is_blocked(center_x, center_y)
+}
+
 /// Push myself away from nearest troops
 fn separation_force(world: &World, entity: Entity, own_team: Team, x: f64, y: f64) -> (f64, f64) {
     // the one nearest other entity
@@ -356,20 +368,30 @@ fn troop_update(world: &World, entity: Entity) -> Option<TroopUpdate> {
     let new_vel_x = accelerate_towards(vel_x, desire_x, TROOP_ACCELERATION);
     let new_vel_y = accelerate_towards(vel_y, desire_y, TROOP_ACCELERATION);
 
-    if new_vel_x == 0.0 && new_vel_y == 0.0 && rotation.is_none() {
-        return None;
-    }
+    // precalculates the new x and y position
+    let new_x = (x + new_vel_x).floor() as i32;
+    let new_y = (y + new_vel_y).floor() as i32;
 
-    Some(TroopUpdate {
-        entity,
-        position: Position {
-            // `.floor()` is faster than `.round()`
-            x: (x + new_vel_x).floor() as i32,
-            y: (y + new_vel_y).floor() as i32,
-        },
-        rotation,
-        velocity: (new_vel_x, new_vel_y),
-    })
+    if new_vel_x == 0.0 && new_vel_y == 0.0 || troop_blocked(world, entity, new_x, new_y) {
+        // don't update pos and vel with bad conditions
+        Some(TroopUpdate {
+            entity,
+            position: Position {
+                x: x as i32,
+                y: y as i32,
+            },
+            rotation,
+            velocity: (0.0, 0.0),
+        })
+    } else {
+        // update all
+        Some(TroopUpdate {
+            entity,
+            position: Position { x: new_x, y: new_y },
+            rotation,
+            velocity: (new_vel_x, new_vel_y),
+        })
+    }
 }
 
 /// aggregates all the troop updates and runs them all at once

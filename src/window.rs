@@ -122,10 +122,12 @@ impl App {
                 }
             }
             systems::Mode::PAINT => {
-                game_state
-                    .world
-                    .obstacles
-                    .paint_at(world_x, world_y, systems::BRUSH_RADIUS);
+                systems::paint_at(
+                    &mut game_state.world,
+                    world_x,
+                    world_y,
+                    systems::BRUSH_RADIUS,
+                );
             }
             systems::Mode::ERASE => {
                 systems::erase_at(
